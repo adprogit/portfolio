@@ -81,7 +81,7 @@ const en = {
   'diagram.sphereTracing.alt': 'Sphere tracing: along a ray, a series of circles, each as large as the distance to the nearest shape, shrinking as the ray approaches the surface it finally hits.',
   'diagram.finiteNormal.alt': 'A circle with its distance level lines; two probes a small step away along x and y give the normal arrow, perpendicular to the surface.',
   'diagram.lambert.alt': 'The same light beam on two surfaces: facing it, it covers a width A; tilted by 60 degrees, it spreads over 2A.',
-  'diagram.blinnLobes.alt': 'Light, view and half vector above a surface, with three specular lobes around the half vector that narrow as the exponent grows from 8 to 128.',
+  'diagram.blinnLobes.alt': 'Light, view and half vector above a surface, with three specular lobes pointing to the mirror direction of the light, narrowing as the exponent grows from 8 to 128.',
   'diagram.softShadow.alt': 'A light, a round occluder and the ground. From a point in the penumbra, a shadow ray marches towards the light through a series of circles, one of them highlighted. Below the ground, two bands show the light received at each point, for two values of k: one switches almost at once from shadow to light, the other brightens gradually.',
   'diagram.mirror.alt': 'A ray reflects off the ground, then off a sphere, and stops when its depth budget reaches zero.',
 
@@ -191,7 +191,7 @@ const fr: Dict = {
   'diagram.sphereTracing.alt': 'Sphere tracing : le long d’un rayon, une suite de cercles aussi grands que la distance à la forme la plus proche, qui rétrécissent à l’approche de la surface finalement touchée.',
   'diagram.finiteNormal.alt': 'Un cercle et ses lignes de niveau de distance ; deux sondes à un petit pas en x et en y donnent la flèche de la normale, perpendiculaire à la surface.',
   'diagram.lambert.alt': 'Le même faisceau de lumière sur deux surfaces : de face, il couvre une largeur A ; inclinée de 60 degrés, il s’étale sur 2A.',
-  'diagram.blinnLobes.alt': 'Lumière, vue et demi-vecteur au-dessus d’une surface, avec trois lobes spéculaires autour du demi-vecteur qui se resserrent quand l’exposant passe de 8 à 128.',
+  'diagram.blinnLobes.alt': 'Lumière, vue et demi-vecteur au-dessus d’une surface, avec trois lobes spéculaires tournés vers la direction miroir de la lumière, qui se resserrent quand l’exposant passe de 8 à 128.',
   'diagram.softShadow.alt': 'Une lumière, un obstacle rond et le sol. Depuis un point de la pénombre, un rayon d’ombre marche vers la lumière par une suite de cercles, dont un est mis en avant. Sous le sol, deux bandes montrent la lumière reçue en chaque point, pour deux valeurs de k : l’une passe presque d’un coup de l’ombre à la lumière, l’autre s’éclaire progressivement.',
   'diagram.mirror.alt': 'Un rayon se réfléchit sur le sol, puis sur une sphère, et s’arrête quand son budget de profondeur tombe à zéro.',
 
@@ -299,7 +299,7 @@ const de: Dict = {
   'diagram.sphereTracing.alt': 'Sphere Tracing: entlang eines Strahls eine Folge von Kreisen, jeder so groß wie der Abstand zur nächsten Form, die schrumpfen, je näher der Strahl der Fläche kommt, die er schließlich trifft.',
   'diagram.finiteNormal.alt': 'Ein Kreis mit seinen Abstands-Höhenlinien; zwei Sonden in kleinem Abstand entlang x und y ergeben den Normalenpfeil, senkrecht zur Fläche.',
   'diagram.lambert.alt': 'Derselbe Lichtstrahl auf zwei Flächen: frontal deckt er eine Breite A ab; um 60 Grad geneigt, verteilt er sich auf 2A.',
-  'diagram.blinnLobes.alt': 'Licht-, Blick- und Halbvektor über einer Fläche, mit drei spekularen Keulen um den Halbvektor, die schmaler werden, wenn der Exponent von 8 auf 128 steigt.',
+  'diagram.blinnLobes.alt': 'Licht-, Blick- und Halbvektor über einer Fläche, mit drei spekularen Keulen in Spiegelrichtung des Lichts, die schmaler werden, wenn der Exponent von 8 auf 128 steigt.',
   'diagram.softShadow.alt': 'Ein Licht, ein rundes Hindernis und der Boden. Von einem Punkt im Halbschatten läuft ein Schattenstrahl über eine Folge von Kreisen zum Licht, einer davon hervorgehoben. Unter dem Boden zeigen zwei Bänder das an jedem Punkt empfangene Licht für zwei Werte von k: das eine wechselt fast schlagartig von Schatten zu Licht, das andere hellt sich allmählich auf.',
   'diagram.mirror.alt': 'Ein Strahl wird am Boden, dann an einer Kugel reflektiert und endet, wenn sein Tiefenbudget null erreicht.',
 

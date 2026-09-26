@@ -59,6 +59,6 @@ const short = (from: Vec, dir: Vec, k: number) => add(from, scale(dir, k));
   <text class="d-label" x={E[0]} y={E[1] - 10}>{t('diagram.eye')} · depth = 2</text>
   <text class="d-label" x={P[0] + 6} y={P[1] - 52}>n</text>
   <text class="d-label" x={(P[0] + Q[0]) / 2 + 8} y={(P[1] + Q[1]) / 2 + 18}>depth = 1</text>
-  <text class="d-label" x={R[0] + 6} y={R[1] + 4}>depth = 0 · {t('diagram.stop')}</text>
+  <text class="d-label" x={R[0] - 4} y={R[1] - 10} text-anchor="end">depth = 0 · {t('diagram.stop')}</text>
   <text class="d-label-accent" x="80" y="244">r = d − 2 (d · n) n</text>
 </svg>

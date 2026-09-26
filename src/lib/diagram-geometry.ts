@@ -116,17 +116,28 @@ export function softShadow(
 /* ── Le lobe de Blinn-Phong ──────────────────────────────────────────── */
 
 /**
- * Le lobe spéculaire `max(cos φ, 0)^ns`, en coordonnées polaires autour d'un
- * axe. Plus `ns` monte, plus il se resserre : c'est tout ce que dit l'exposant.
+ * Le reflet de Blinn-Phong vu de chaque direction : pour toute direction de
+ * vue V au-dessus de la surface, H = normalize(L + V) et le rayon du lobe vaut
+ * `max(n·H, 0)^ns`. Rien n'est supposé sur sa forme : il pointe de lui-même
+ * vers la direction miroir de L, là où H rejoint n, et se resserre quand `ns`
+ * monte. `light` et `normal` sont unitaires, en repère SVG.
  */
-export function lobePath(center: Vec, axisAngle: number, ns: number, radius: number): string {
-  const points: string[] = [];
-  const n = 90;
+export function blinnLobePath(
+  center: Vec,
+  light: Vec,
+  normal: Vec,
+  ns: number,
+  radius: number
+): string {
+  const tangent: Vec = [-normal[1], normal[0]];
+  const points: string[] = [pt(center)];
+  const n = 180;
   for (let i = 0; i <= n; i++) {
-    const phi = -Math.PI / 2 + (Math.PI * i) / n;
-    const r = radius * Math.pow(Math.max(Math.cos(phi), 0), ns);
-    const a = axisAngle + phi;
-    points.push(pt([center[0] + r * Math.cos(a), center[1] + r * Math.sin(a)]));
+    const a = (Math.PI * i) / n;
+    const v = add(scale(tangent, Math.cos(a)), scale(normal, Math.sin(a)));
+    const h = normalize(add(light, v));
+    const r = radius * Math.pow(Math.max(dot(normal, h), 0), ns);
+    points.push(pt(add(center, scale(v, r))));
   }
   return `M${points.join(' L')}Z`;
 }

@@ -921,6 +921,22 @@
   }
 
   /*
+   * Un libellé qui croise un trait reste lisible : un halo couleur de page est
+   * peint sous ses lettres (`paint-order`), et le trait s'interrompt autour.
+   */
+  :is(.d-label, .d-label-accent) {
+    paint-order: stroke;
+    stroke: var(--color-paper);
+    stroke-width: 5px;
+    stroke-linejoin: round;
+  }
+
+  /* Sur une forme remplie, le halo couleur de page ferait une tache. */
+  .diagram-svg .d-bare {
+    stroke: none;
+  }
+
+  /*
    * Les animations des schémas : une apparition en file (`.d-anim`, avec son
    * rang `--i`) et un tracé (`.d-draw`, sur un chemin de longueur 1).
    *

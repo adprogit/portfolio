@@ -1,13 +1,15 @@
 ---
 /**
  * Chapitre 07 — Blinn-Phong : H, le demi-vecteur entre la lumière et l'œil, et
- * le lobe max(n·H, 0)^ns qui se resserre quand ns monte. Les trois lobes sont
- * tracés depuis la formule, pas à la main, et apparaissent du plus large au
- * plus serré.
+ * le reflet max(n·H, 0)^ns tel qu'on le voit de chaque direction. Pour chaque
+ * direction de vue, H est recalculé : le lobe n'est pas centré sur H, il pointe
+ * vers la direction miroir R de la lumière, où H rejoint n. Les trois lobes sont
+ * tracés depuis la formule et apparaissent du plus large au plus serré ; leur
+ * opacité les relie à la légende.
  */
 import type { Locale } from '../../i18n/config';
 import { useT } from '../../i18n/ui';
-import { add, arrowHead, lobePath, normalize, scale, type Vec } from '../../lib/diagram-geometry';
+import { add, arrowHead, blinnLobePath, normalize, scale, type Vec } from '../../lib/diagram-geometry';
 
 interface Props { lang: Locale }
 const t = useT(Astro.props.lang);
@@ -19,19 +21,24 @@ const L = polar(142);
 const V = polar(58);
 const H = normalize(add(L, V));
 const N: Vec = [0, -1];
-const axis = Math.atan2(H[1], H[0]);
+const R = polar(180 - 142);
 
-const lobes = [8, 32, 128];
+const lobes = [
+  { ns: 8, opacity: 0.4 },
+  { ns: 32, opacity: 0.7 },
+  { ns: 128, opacity: 1 },
+];
 const tip = (v: Vec, k: number) => add(P, scale(v, k));
 ---
 
 <svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.blinnLobes.alt')}>
   <line class="d-line" x1="90" y1={P[1]} x2="520" y2={P[1]} />
 
-  {lobes.map((ns, i) => (
-    <path class="d-lobe d-anim" style={`--i: ${i}`} d={lobePath(P, axis, ns, 176)} />
+  {lobes.map(({ ns, opacity }, i) => (
+    <path class="d-lobe d-anim" style={`--i: ${i}`} stroke-opacity={opacity} d={blinnLobePath(P, L, N, ns, 170)} />
   ))}
 
+  <line class="d-rule" x1={P[0]} y1={P[1]} x2={tip(R, 190)[0]} y2={tip(R, 190)[1]} />
   <line class="d-light" x1={P[0]} y1={P[1]} x2={tip(L, 160)[0]} y2={tip(L, 160)[1]} />
   <polygon class="d-head-light" points={arrowHead(P, tip(L, 160))} />
   <line class="d-line" x1={P[0]} y1={P[1]} x2={tip(V, 160)[0]} y2={tip(V, 160)[1]} />
@@ -42,10 +49,14 @@ const tip = (v: Vec, k: number) => add(P, scale(v, k));
 
   <text class="d-label" x={tip(L, 172)[0] - 10} y={tip(L, 172)[1]}>L</text>
   <text class="d-label" x={tip(V, 172)[0]} y={tip(V, 172)[1]}>V</text>
+  <text class="d-label" x={tip(R, 200)[0]} y={tip(R, 200)[1] + 4}>R</text>
   <text class="d-label" x={tip(N, 162)[0] - 4} y={tip(N, 162)[1]}>n</text>
-  <text class="d-label-accent" x={tip(H, 130)[0] + 6} y={tip(H, 130)[1]}>H</text>
+  <text class="d-label-accent" x={tip(H, 130)[0] - 14} y={tip(H, 130)[1]}>H</text>
 
-  <text class="d-label-accent" x="540" y="120">ns = 8</text>
-  <text class="d-label-accent" x="540" y="142">ns = 32</text>
-  <text class="d-label-accent" x="540" y="164">ns = 128</text>
+  {lobes.map(({ ns, opacity }, i) => (
+    <g>
+      <line class="d-lobe" stroke-opacity={opacity} x1="540" y1={116 + i * 22} x2="560" y2={116 + i * 22} />
+      <text class="d-label-accent" x="568" y={120 + i * 22}>ns = {ns}</text>
+    </g>
+  ))}
 </svg>
