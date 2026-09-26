@@ -1,0 +1,28 @@
+---
+/**
+ * La légende d'une figure, une fois pour tous ses panneaux, au-dessus d'eux.
+ * En HTML plutôt que dans le SVG : elle se replie sur plusieurs lignes quand
+ * la place manque, là où une légende dessinée déborderait ou rétrécirait.
+ */
+interface Props {
+  entries: { key: string; label: string; dash?: boolean; marker?: 'cross' }[];
+}
+const { entries } = Astro.props;
+---
+
+<ul class="mb-3 flex flex-wrap gap-x-5 gap-y-1.5 font-mono text-xs text-ink-soft">
+  {
+    entries.map((e) => (
+      <li class:list={['inline-flex items-center gap-2', `s-${e.key}`]}>
+        <svg class="legend-swatch" viewBox="0 0 22 8" width="22" height="8" aria-hidden="true">
+          {e.marker === 'cross' ? (
+            <path class="p-cross" d="M7.5,0.5l7,7m0,-7l-7,7" />
+          ) : (
+            <line class:list={['p-line', e.dash && 'p-dash']} x1="1" y1="4" x2="21" y2="4" />
+          )}
+        </svg>
+        {e.label}
+      </li>
+    ))
+  }
+</ul>

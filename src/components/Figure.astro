@@ -1,0 +1,119 @@
+---
+/**
+ * Une capture dans une section, cliquable pour l'agrandir.
+ *
+ * Les images ont disparu de l'accueil et des en-têtes : celles qui restent
+ * sont là pour prouver un résultat, et elles n'ont plus besoin d'être
+ * décorées. Un filet d'un pixel, la légende dessous, rien autour.
+ */
+import { Image } from 'astro:assets';
+import type { ResolvedShot } from '../data/projects';
+import type { Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  shot: ResolvedShot;
+  /** Groupe lightbox, et numéro de la figure dans la page. */
+  group: string;
+  index: number;
+  /**
+   * Position dans le lightbox, si elle diffère du numéro de figure — sur une
+   * note, les schémas prennent des numéros mais n'entrent pas au lightbox.
+   */
+  position?: number;
+  lang: Locale;
+  eager?: boolean;
+}
+
+const { shot, group, index, position = index, lang, eager = false } = Astro.props;
+const t = useT(lang);
+const { image } = shot;
+
+/*
+ * Une figure dessinée sur noir ou sur blanc garde son propre papier : posée
+ * telle quelle sur la page, elle paraîtrait découpée. Elle est donc montée
+ * dans un cadre de sa couleur — et c'est surtout ce qui sauve les graphiques
+ * Matplotlib, qui sont sur blanc, d'éblouir en thème sombre.
+ */
+const frame =
+  shot.background === 'dark'
+    ? 'bg-black p-3 sm:p-4'
+    : shot.background === 'light'
+      ? 'bg-white p-3 sm:p-4'
+      : '';
+
+// Les visuels plus hauts que larges sont bornés en hauteur, sinon ils mangent
+// tout l'écran.
+const portrait = image.height > image.width;
+
+const shape = portrait
+  ? 'mx-auto max-h-[70vh] w-auto max-w-full object-contain'
+  : 'w-full object-cover';
+
+/*
+ * La parallaxe n'est posée que sur les visuels en largeur. Un portrait est déjà
+ * borné en hauteur et inscrit dans son cadre (`object-contain`) : le faire
+ * dériver le décollerait de ses bords au lieu de le faire respirer dedans.
+ */
+const drift = portrait ? shape : `${shape} parallax`;
+
+/*
+ * Une figure remplit la colonne de la page (`shell`, 54rem) : elle est plus
+ * large que le texte, qui lui est rentré. Cette largeur grandit avec la taille
+ * de base — ~864 px à 16, ~1 190 px à 22 — donc on monte jusqu'à 2 400 px pour
+ * couvrir le 2× HiDPI, sans jamais demander plus grand que l'original.
+ */
+const widths = [640, 960, 1280, 1920, 2400].filter((width) => width <= image.width);
+---
+
+<figure class="reveal">
+  <button
+    type="button"
+    data-lightbox-open
+    data-group={group}
+    data-index={position}
+    class:list={[
+      'group block w-full cursor-zoom-in overflow-hidden rounded border border-rule transition-colors hover:border-line',
+      frame || 'bg-paper-sunken',
+    ]}
+    aria-label={t('a11y.enlarge', { caption: shot.caption })}
+  >
+    {
+      shot.animated ? (
+        /* GIF animé : servi tel quel, le pipeline d'images n'en garderait
+           que la première image. */
+        <img
+          src={image.src}
+          alt={shot.alt}
+          width={image.width}
+          height={image.height}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          class={drift}
+        />
+      ) : (
+        <Image
+          src={image}
+          alt={shot.alt}
+          widths={widths.length ? widths : [image.width]}
+          sizes="(min-width: 1024px) 1200px, 100vw"
+          format="webp"
+          quality={82}
+          loading={eager ? 'eager' : 'lazy'}
+          fetchpriority={eager ? 'high' : 'auto'}
+          decoding="async"
+          class={drift}
+        />
+      )
+    }
+  </button>
+
+  {/* Légende numérotée, comme dans un rapport : le numéro suit l'ordre du
+      lightbox, donc il est unique et stable dans la page. */}
+  <figcaption class="mt-2.5 flex gap-3 text-sm leading-relaxed text-pretty text-ink-soft">
+    <span class="shrink-0 pt-px font-mono text-xs">
+      {t('figure.label', { n: String(index + 1).padStart(2, '0') })}
+    </span>
+    {shot.caption}
+  </figcaption>
+</figure>

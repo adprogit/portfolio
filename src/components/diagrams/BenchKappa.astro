@@ -1,0 +1,45 @@
+---
+/**
+ * Itérations en fonction de κ, quadratique de dimension 30. Les runs de la
+ * descente de gradient arrêtés au plafond (20 000) sont marqués d'un cercle
+ * creux, posés au plafond.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import { benchKappa } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const rows = benchKappa();
+const line = (k: 'newton' | 'fr' | 'pr' | 'bfgs') => rows.map((r) => [r.kappa, r[k]] as [number, number]);
+const gd = rows.filter((r) => r.gd !== null).map((r) => [r.kappa, r.gd!] as [number, number]);
+const gdFailed = rows.filter((r) => r.gd === null).map((r) => [r.kappa, 20000] as [number, number]);
+---
+
+<Legend
+  entries={[
+    { key: 'newton', label: 'Newton' },
+    { key: 'fr', label: 'CG-FR' },
+    { key: 'pr', label: 'CG-PR+', dash: true },
+    { key: 'bfgs', label: 'BFGS' },
+    { key: 'gd', label: 'GD' },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="bench-kappa"
+    alt={t('diagram.benchKappa.alt')}
+    x={{ domain: [0.8, 13000], log: true, label: t('plot.kappa') }}
+    y={{ domain: [0.8, 30000], log: true, label: t('plot.iterations') }}
+    series={[
+      { key: 'newton', points: line('newton'), marker: 'dot' },
+      { key: 'gd', points: gd, marker: 'dot', failed: gdFailed },
+      { key: 'bfgs', points: line('bfgs'), marker: 'dot' },
+      { key: 'fr', points: line('fr'), marker: 'dot' },
+      { key: 'pr', points: line('pr'), marker: 'dot', dash: true },
+    ]}
+    guides={[[[0.8, 30], [13000, 30]]]}
+  />
+</div>

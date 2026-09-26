@@ -1,0 +1,28 @@
+---
+/** Pages projet en anglais : /projects/<slug>/ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ProjectBody from '../../components/ProjectBody.astro';
+import { projectRoutes, type ResolvedProject } from '../../data/projects';
+import { defaultLocale } from '../../i18n/config';
+
+export function getStaticPaths() {
+  return projectRoutes
+    .filter((route) => route.locale === defaultLocale)
+    .map((route) => ({
+      params: { slug: route.slug },
+      props: { project: route.project },
+    }));
+}
+
+const { project } = Astro.props as { project: ResolvedProject };
+---
+
+<BaseLayout
+  lang={defaultLocale}
+  back
+  title={`${project.title} · ${project.tagline}`}
+  description={project.description}
+  image={project.cover.image}
+>
+  <ProjectBody project={project} lang={defaultLocale} />
+</BaseLayout>

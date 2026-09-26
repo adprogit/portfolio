@@ -1,0 +1,102 @@
+---
+/**
+ * Vidéo de démonstration, muette et en boucle.
+ *
+ * Une vidéo d'ouverture (`eager`) porte l'attribut `autoplay` : elle est
+ * visible d'emblée, et la lecture ne doit dépendre de rien — ni d'un script
+ * chargé, ni d'un IntersectionObserver. Les autres restent au repos tant que
+ * la figure n'approche pas de l'écran (`preload="none"`).
+ *
+ * Le script ne fait plus démarrer que ce qui n'a pas `autoplay` ; pour le
+ * reste, il met en pause hors écran et rend la main à l'utilisateur en
+ * mouvement réduit.
+ */
+import type { ResolvedClip } from '../data/projects';
+
+interface Props {
+  clip: ResolvedClip;
+  /**
+   * Vidéo d'ouverture : elle est visible dès le chargement, donc l'attendre
+   * n'économise rien et laisse un cadre noir. On demande les métadonnées, ce
+   * qui suffit au navigateur pour peindre la première image.
+   */
+  eager?: boolean;
+}
+
+const { clip, eager = false } = Astro.props;
+---
+
+<figure class="reveal">
+  <div class="overflow-hidden rounded border border-rule bg-black">
+    <video
+      class="h-auto w-full"
+      src={clip.src}
+      width={clip.width}
+      height={clip.height}
+      preload={eager ? 'metadata' : 'none'}
+      autoplay={eager}
+      muted
+      loop
+      playsinline
+      disablepictureinpicture
+      aria-label={clip.alt}
+      data-autoplay-in-view></video>
+  </div>
+
+  <figcaption class="mt-2.5 text-sm leading-relaxed text-pretty text-ink-soft">
+    {clip.caption}
+  </figcaption>
+</figure>
+
+<script>
+  const setup = () => {
+    const videos = document.querySelectorAll<HTMLVideoElement>('[data-autoplay-in-view]');
+    if (!videos.length) return;
+
+    // Une source refusée par le navigateur ne doit pas rester un cadre noir :
+    // les contrôles natifs affichent au moins l'erreur.
+    videos.forEach((video) => {
+      video.addEventListener('error', () => {
+        video.controls = true;
+        if (import.meta.env.DEV) console.warn('vidéo illisible :', video.currentSrc);
+      });
+    });
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced || !('IntersectionObserver' in window)) {
+      // Pas de lecture automatique : on rend la main à l'utilisateur. `autoplay`
+      // a pu démarrer avant que ce script tourne — il faut donc aussi arrêter.
+      videos.forEach((video) => {
+        video.autoplay = false;
+        video.pause();
+        video.controls = true;
+        video.preload = 'metadata';
+      });
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target as HTMLVideoElement;
+          if (entry.isIntersecting) {
+            // `play()` peut être refusé (économie de données) : on ne fait
+            // qu'afficher les contrôles dans ce cas.
+            video.play().catch(() => {
+              video.controls = true;
+            });
+          } else {
+            video.pause();
+          }
+        });
+      },
+      { rootMargin: '200px 0px', threshold: 0.15 }
+    );
+
+    videos.forEach((video) => observer.observe(video));
+  };
+
+  setup();
+  document.addEventListener('astro:page-load', setup);
+</script>

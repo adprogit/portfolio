@@ -1,0 +1,1372 @@
+@import "tailwindcss";
+
+/*
+ * Polices auto-hébergées (aucun appel réseau externe).
+ *
+ * Une seule famille, deux graisses de dessin : IBM Plex. Le mono porte toute
+ * la structure — titres, numéros, libellés, code — et le sans ne sert qu'au
+ * texte courant. Comme les deux sortent du même atelier, ils partagent leurs
+ * proportions et leur axe : une ligne de mono posée sous un paragraphe de sans
+ * ne change pas de voix, seulement de rythme.
+ *
+ * Le mono est chargé en quatre graisses statiques, sous-ensemble latin
+ * uniquement : IBM Plex Mono n'existe pas en variable, et quatre fichiers de
+ * 25 ko pèsent moins qu'un axe complet.
+ */
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-700.css";
+
+/*
+ * Et une troisième, pour un seul usage : un mot par titre.
+ *
+ * Instrument Serif, en italique et en une seule graisse — 24 ko. C'est une
+ * didone à fort contraste, tout le contraire du Plex : c'est justement ce qu'on
+ * lui demande. Un mot de cette main au milieu d'une ligne en chasse fixe ne se
+ * lit pas comme une variante, il se lit comme une autre voix.
+ *
+ * Elle n'est chargée qu'en italique parce qu'elle ne sert qu'à ça. Une romaine
+ * en plus serait une famille de texte, et le site en a déjà deux.
+ */
+@import "@fontsource/instrument-serif/latin-400-italic.css";
+
+/* Dark mode piloté par la classe `.dark` sur <html> (voir BaseLayout.astro). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * ── Palette ───────────────────────────────────────────────────────────
+ *
+ * Charbon et papier. Le thème sombre est un charbon chaud (`#141210`), le
+ * clair un papier crème (`#f5efe3`), et le texte suit : ivoire sur le
+ * charbon, brun d'encre sur le papier. Aucun des deux n'est un gris : un fond
+ * teinté fait lire la page comme un objet, un gris neutre comme un écran.
+ *
+ * L'accent du site est l'**ambre** — le mot en italique, les surtitres, les
+ * liens, la lueur, la poussière du fond. C'est la seule couleur chaude
+ * saturée de la page, et elle est posée sur un fond déjà chaud : elle s'y
+ * accorde au lieu de s'y détacher par contraste de teinte.
+ *
+ * Les six accents de projet gardent leurs noms de famille — cyan, vert,
+ * orange, rose, violet, jaune — mais plus leurs valeurs d'origine : les
+ * couleurs de Dracula, saturées et froides, criaient sur un fond chaud. Ce
+ * sont maintenant des teintes de terre, désaturées et réchauffées — sarcelle,
+ * sauge, terre cuite, rose poudré, prune, ocre. Elles distinguent encore les
+ * projets entre eux, mais elles appartiennent à la même page que l'ambre.
+ *
+ * Un accent ne remplit rien. Il colore du texte, un filet, un numéro — jamais
+ * un bloc. C'est la règle qui tient tout le reste : il n'y a plus d'encre
+ * sombre à poser sur des aplats clairs, donc plus qu'une seule direction de
+ * contraste à vérifier, et la page reste sobre quel que soit le nombre de
+ * projets.
+ *
+ * `tools/check-contrast.mjs` relit ce fichier et refuse toute combinaison sous
+ * le seuil WCAG AA.
+ */
+@theme {
+  --font-sans: "IBM Plex Sans Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+
+  /*
+   * Un cran sous `text-xs`, pour les libellés en petite capitale — numéros de
+   * section, titres de famille, unités. Il existe pour une seule raison : ces
+   * libellés étaient écrits `text-[11px]`, et onze pixels restent onze pixels
+   * quand le reste de la page passe de 16 à 22. En rem, ils suivent.
+   */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.5;
+
+  /*
+   * ── Les quatre corps au-dessus du texte ─────────────────────────────
+   *
+   * L'échelle avait un creux au milieu : 47 usages en petit, 4 en display, et
+   * presque rien entre les deux. Concrètement, sur une page projet, un titre de
+   * section faisait 1,25rem contre 1rem pour le corps — **25 % d'écart**, donc
+   * un titre qui ne s'impose pas — pendant que le saut du `h1` au `h2` était du
+   * simple au double.
+   *
+   * Quatre crans nommés, et le trou est comblé :
+   *
+   *   display  2,75  l'accroche de l'accueil
+   *   lead     2,40  le titre d'un projet
+   *   title    1,63  une section de l'accueil
+   *   heading  1,30  une section d'une page projet
+   *   (corps)  1,00
+   *
+   * Pas de `vw` dans ces valeurs, et pas de variante au point d'arrêt : la
+   * taille de base est déjà fluide (16→22px selon la fenêtre), donc tout suit
+   * déjà. Les deux plus gros sont bornés par un `min()` en `vw`, et seulement
+   * pour qu'une accroche de quarante caractères ne déborde pas d'un téléphone.
+   */
+  --text-display: min(2.75rem, 9vw);
+  --text-display--line-height: 1.06;
+  --text-display--letter-spacing: -0.045em;
+
+  --text-lead: min(2.4rem, 8vw);
+  --text-lead--line-height: 1.08;
+  --text-lead--letter-spacing: -0.04em;
+
+  --text-title: 1.625rem;
+  --text-title--line-height: 1.15;
+
+  --text-heading: 1.3rem;
+  --text-heading--line-height: 1.2;
+
+  /*
+   * Les six accents, variante claire. Ce sont des teintes de texte : chacune
+   * dépasse 5:1 sur les trois surfaces du thème. Elles se suivent dans cet
+   * ordre partout où une série en défile.
+   */
+  --color-accent-cyan: #2f6a60;
+  --color-accent-green: #4c672c;
+  --color-accent-orange: #96492a;
+  --color-accent-pink: #94434f;
+  --color-accent-purple: #694f7e;
+  --color-accent-yellow: #6f5b1e;
+
+  /* Surfaces neutres, variante claire. */
+  --color-paper: #f5efe3;
+  --color-paper-raised: #fbf7ef;
+  --color-paper-sunken: #ebe3d4;
+
+  /*
+   * Deux traits, et la différence compte. `line` cerne ce qui doit se voir
+   * (un cadre, un champ, une figure) et tient le seuil « interface » de 3:1 ;
+   * `rule` ne fait que séparer, et a le droit d'être presque invisible — c'est
+   * lui qui donne au site ses filets d'un pixel.
+   */
+  --color-line: #8c8170;
+  --color-rule: #e0d6c3;
+
+  /*
+   * Texte.
+   *
+   * `ink-strong` n'est ni du blanc ni du noir purs, dans aucun des deux
+   * thèmes : les deux extrêmes sont les seules valeurs qui n'appartiennent à
+   * aucune palette, et un titre qui les porte se détache du site au lieu d'en
+   * faire partie. La teinte est celle du fond, poussée à l'extrême : un brun
+   * d'encre sur le papier, un ivoire sur le charbon.
+   */
+  --color-ink: #332c23;
+  --color-ink-strong: #1d1812;
+  --color-ink-soft: #6b6152;
+
+  /* L'accent du site : l'ambre, assourdi d'un cran et assombri pour le papier. */
+  --color-brand: #7d5a26;
+  --color-brand-strong: #5f4318;
+}
+
+/*
+ * Variante sombre — charbon chaud.
+ *
+ * Presque noir, mais pas neutre : une pointe de brun (`#141210`). Sur un grand
+ * écran, une page presque vide d'un gris neutre fait un aplat d'écran éteint ;
+ * teintée, elle se lit comme une surface. Les surfaces relevées montent d'un
+ * cran dans la même teinte (`#1c1a17`), et le texte est un ivoire, jamais du
+ * blanc.
+ */
+.dark {
+  --color-accent-cyan: #8fb8ae;
+  --color-accent-green: #a8bd8c;
+  --color-accent-orange: #d99a70;
+  --color-accent-pink: #d39fa2;
+  --color-accent-purple: #b8a2c6;
+  --color-accent-yellow: #cdb779;
+
+  --color-paper: #141210;
+  --color-paper-raised: #1c1a17;
+  --color-paper-sunken: #0c0b09;
+
+  --color-line: #6e6558;
+  --color-rule: #2e2a24;
+
+  --color-ink: #d8d0c0;
+  --color-ink-strong: #f2ebdc;
+  --color-ink-soft: #9e9585;
+
+  --color-brand: #dca55a;
+  --color-brand-strong: #ebbd7c;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    /*
+     * Toute la mise en page est en rem — largeurs, marges, corps de texte —
+     * donc régler cette seule valeur règle l'échelle du site entier.
+     *
+     * Elle suit la largeur de la fenêtre : 16px sur un téléphone, ~18px sur un
+     * portable, 22px sur un écran de 2 880. Sans cela, une page dessinée pour
+     * 16px sur un grand écran laisse deux marges vides et une colonne qu'on lit
+     * de loin. Ici, la colonne grandit avec l'écran au lieu d'y flotter.
+     *
+     * **Tout ce qui doit rester d'accord avec le texte se mesure donc en rem,
+     * sans exception** : un bloc de code en `px` rapetisserait à mesure que le
+     * texte grandit, et c'est exactement l'incohérence qu'on cherche à éviter.
+     *
+     * Le `rem` de la formule est relatif à la valeur initiale (16px), pas à
+     * elle-même : 0.875rem vaut 14px, quoi qu'il arrive.
+     */
+    font-size: clamp(16px, 0.875rem + 0.3vw, 22px);
+    scrollbar-color: var(--color-rule) transparent;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Les titres sont en mono. Ce n'est pas une coquetterie de terminal : un
+   * titre en chasse fixe se cale sur la même grille que les numéros de
+   * section, les années et le code qui l'entourent, et la page entière semble
+   * alignée sur une seule mesure. L'interlettrage est resserré, sans quoi la
+   * chasse fixe s'étale.
+   */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+  }
+
+  h1 {
+    font-weight: 700;
+    letter-spacing: -0.045em;
+  }
+
+  ::selection {
+    background: var(--color-brand);
+    color: var(--color-paper);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  dialog::backdrop {
+    background: #101016;
+  }
+}
+
+@layer components {
+  /*
+   * ── Les deux largeurs ───────────────────────────────────────────────
+   *
+   * Deux largeurs, et c'est tout. Les deux sont en rem, donc solidaires de la
+   * taille de base réglée plus haut : à 16px, 864 et 704 pixels ; à 22px,
+   * 1 188 et 968.
+   *
+   * | Largeur   | Pour quoi                                              |
+   * |-----------|--------------------------------------------------------|
+   * | `shell`   | la colonne de la page — bandeau, pied, figures, listes |
+   * | `measure` | ce qui se lit dedans : texte, listes, **et code**      |
+   *
+   * Il y en a eu trois un temps : la page plus large que les figures,
+   * elles-mêmes plus larges que le texte. Trois alignements, donc deux
+   * décrochements, et l'œil les sentait sans pouvoir les nommer. Ici, tout
+   * commence au même pixel — le bandeau, une figure, une ligne de projet — et
+   * seul le texte est rentré.
+   *
+   * Le code est du texte : il partage la colonne du texte, exactement. Une
+   * ligne de commentaire et une ligne de paragraphe commencent au même pixel.
+   *
+   * Ce qui se regarde n'a pas de classe du tout : ça remplit la page, ce qui
+   * est déjà le comportement par défaut d'un bloc.
+   */
+  .shell {
+    width: 100%;
+    max-width: 54rem;
+    margin-inline: auto;
+  }
+
+  .measure {
+    width: 100%;
+    max-width: 44rem;
+    margin-inline: auto;
+  }
+
+  /*
+   * ── L'accueil, en deux panneaux ─────────────────────────────────────
+   *
+   * La bio et les projets ne se suivent pas : ils se succèdent. Ce ne sont pas
+   * deux blocs d'une même colonne qu'on déroule, ce sont deux écrans, et on
+   * passe de l'un à l'autre — il n'y a pas d'état intermédiaire à regarder.
+   *
+   * Il y a eu un fondu ici, la bio pâlissant sur place pendant qu'on scrollait.
+   * C'était l'inverse de ce qu'il faut : un fondu *relie*. Pendant toute sa
+   * durée on voyait les deux à la fois, à demi, et la page redevenait une seule
+   * chose qui défile. La rupture tient en trois traits :
+   *
+   * 1. la bio fait **exactement un écran** — pas de course, pas de collant ;
+   * 2. elle se termine sur une **couture** pleine largeur, qui déborde la
+   *    colonne de la page : c'est le seul trait du site qui va d'un bord à
+   *    l'autre, et il ne sert qu'à ça ;
+   * 3. le défilement **s'y arrête** (`scroll-snap`) : le geste mène d'un écran
+   *    au suivant, pas à un entre-deux.
+   *
+   * `svh` et non `vh` : sur un téléphone, la barre d'adresse mange `vh` et la
+   * bio dépasserait de l'écran au premier chargement.
+   *
+   * Tout est en CSS. Il n'y a plus de script d'accueil du tout — c'était celui
+   * du fondu, et le fondu était l'erreur.
+   */
+  .hero {
+    display: flex;
+    min-height: 100svh;
+    flex-direction: column;
+    /*
+     * En tête, pas centré. Centré, le contenu déborderait des deux côtés dès
+     * qu'il dépasse la hauteur de l'écran, et le titre partirait au-dessus du
+     * bord. C'est l'invite de défilement qui occupe le reste de la hauteur
+     * (`mt-auto`), donc l'écran est rempli quand même.
+     */
+    justify-content: flex-start;
+    /* Dégage le bandeau, qui passe par-dessus. */
+    padding-block: 5rem 2.5rem;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /*
+   * Le cran de défilement, posé sur `<html>` et seulement sur l'accueil (voir
+   * la classe `snap` dans `BaseLayout.astro`). `proximity` et non `mandatory` :
+   * la liste des projets est longue, et un cran obligatoire sur un bloc plus
+   * haut que l'écran emprisonne le défilement à l'intérieur.
+   */
+  html.snap {
+    scroll-snap-type: y proximity;
+  }
+
+  /*
+   * L'invite de défilement : un trait qui descend en boucle dans sa gouttière.
+   */
+  .hero-cue-track {
+    position: relative;
+    display: block;
+    height: 2.25rem;
+    width: 1px;
+    overflow: hidden;
+    background: var(--color-rule);
+  }
+
+  .hero-cue-track::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 45%;
+    background: var(--color-brand);
+    animation: hero-cue 2.1s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+
+  @keyframes hero-cue {
+    0% {
+      transform: translateY(-100%);
+    }
+    60%,
+    100% {
+      transform: translateY(222%);
+    }
+  }
+
+  /*
+   * ── La couture ──────────────────────────────────────────────────────
+   *
+   * Le trait qui sépare les deux écrans, et le seul du site à aller d'un bord
+   * à l'autre. Un filet gris d'un pixel n'y suffisait pas : posé au bas d'un
+   * écran presque vide, on ne le voyait pas passer, et les deux panneaux se
+   * remettaient à ressembler à une seule page.
+   *
+   * Il est donc de la couleur de l'accent, il s'éteint à ses deux extrémités —
+   * c'est une couture, pas un cadre — et il éclaire ce qui l'entoure. Une fois,
+   * au chargement, une lumière le parcourt : il est en bas du premier écran,
+   * donc on la voit sans avoir rien fait, et on sait qu'il y a un dessous.
+   */
+  .seam {
+    position: relative;
+    height: 1px;
+    overflow: hidden;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--color-brand) 12%,
+      var(--color-brand) 88%,
+      transparent
+    );
+    box-shadow: var(--seam-glow, none);
+  }
+
+  .dark .seam {
+    --seam-glow: 0 0 1.25rem -0.25rem var(--color-brand);
+  }
+
+  /* La lumière qui le parcourt. `both` : elle finit hors champ et y reste. */
+  .seam::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 22%;
+    background: linear-gradient(to right, transparent, var(--color-ink-strong), transparent);
+    animation: seam-sweep 1.7s cubic-bezier(0.4, 0, 0.2, 1) 0.9s both;
+  }
+
+  @keyframes seam-sweep {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(560%);
+    }
+  }
+
+  /*
+   * ── Le mot d'une autre main ─────────────────────────────────────────
+   *
+   * Un titre n'est pas tout d'un bloc : sa fin porte le sujet, et c'est elle
+   * qu'on met en relief. Pas en la grossissant ni en la mettant en gras — le
+   * titre est déjà gros — mais en **changeant de voix** : une didone en
+   * italique, dans l'accent, au milieu d'une ligne en chasse fixe.
+   *
+   * L'interlettrage revient à zéro : les titres en Plex Mono sont resserrés à
+   * -0,045em pour compenser la chasse fixe, ce qui écraserait une italique
+   * dessinée, elle, avec ses approches. Et un soupçon de `padding` à droite,
+   * parce qu'une italique finit penchée et se ferait couper par le bord de sa
+   * boîte.
+   */
+  .accent-word {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0;
+    padding-inline-end: 0.06em;
+    color: var(--accent-word, var(--color-brand));
+    text-shadow: var(--glow-title, none);
+  }
+
+  /*
+   * ── La ligne qui s'écrit ────────────────────────────────────────────
+   *
+   * Le texte se découvre caractère par caractère, avec un curseur qui clignote
+   * au bout. C'est le geste d'un terminal, et c'est la seule chose du site qui
+   * imite quelque chose — ailleurs, rien ne fait semblant.
+   *
+   * Il n'est posé que sur **une** ligne, la plus courte de la page. Un effet de
+   * machine à écrire sur un paragraphe se paie en attente : on attend que la
+   * machine finisse pour lire, et on la déteste dès la deuxième visite.
+   *
+   * ── Comment, et pourquoi pas autrement ───────────────────────────────
+   *
+   * Le texte est **entier dans le DOM** : c'est un masque qui se retire, pas
+   * des caractères qu'on ajoute. Un lecteur d'écran lit donc la phrase d'un
+   * coup, et la page ne dépend d'aucun script.
+   *
+   * `clip-path` et non `width` : une largeur animée recalcule la mise en page à
+   * chaque pas, là où un masque ne coûte qu'une passe de composition. Et
+   * `steps(var(--chars))` plutôt qu'une progression continue — sans les pas, le
+   * masque couperait un caractère en deux au lieu de le découvrir entier. Le
+   * nombre de caractères est posé en style inline par le composant : il change
+   * avec la langue.
+   */
+  .typed {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+
+  /*
+   * Le curseur n'arrive qu'une fois la ligne écrite.
+   *
+   * Le masque ne change pas la largeur du texte : le curseur, posé après lui,
+   * se tiendrait donc dès la première image à la fin d'une phrase qu'on n'a pas
+   * encore lue. Plutôt que de le faire courir — ce qui supposerait de connaître
+   * l'avance exacte d'un caractère, interlettrage compris —, il reste
+   * simplement invisible pendant la frappe.
+   *
+   * L'animation n'a **pas** de `fill` : avant son délai, l'élément garde donc
+   * son `opacity: 0` de base. C'est tout le mécanisme.
+   */
+  .typed::after {
+    content: '';
+    display: inline-block;
+    width: 0.55em;
+    height: 1em;
+    margin-inline-start: 0.15em;
+    vertical-align: text-bottom;
+    background: currentColor;
+    opacity: 0;
+    animation: caret 1.05s steps(1) calc(0.35s + var(--chars) * 55ms) infinite;
+  }
+
+  @keyframes caret {
+    0%,
+    50% {
+      opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .typed > span {
+      display: inline-block;
+      animation: type-in calc(var(--chars) * 55ms) steps(var(--chars)) 0.35s both;
+      clip-path: inset(0 100% 0 0);
+    }
+  }
+
+  @keyframes type-in {
+    from {
+      clip-path: inset(0 100% 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* La ligne est écrite d'emblée ; le curseur reste, posé, et ne clignote
+       plus : il dit encore « terminal » sans être un mouvement. */
+    .typed::after {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  /*
+   * ── Le titre qui se lève ────────────────────────────────────────────
+   * Les mots du titre d'accueil montent l'un après l'autre. C'est la seule
+   * animation du site qui se déclenche au chargement plutôt qu'au regard : le
+   * titre est la première chose lue, et il n'y a rien avant lui à attendre.
+   */
+  .word {
+    display: inline-block;
+    opacity: 0;
+    animation: word-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(var(--i) * 70ms + 150ms);
+  }
+
+  @keyframes word-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.45em);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /*
+   * Le second panneau commence à sa couture, pas au titre : c'est la couture
+   * qu'on veut voir en haut de l'écran une fois le cran passé.
+   */
+  .panel {
+    scroll-snap-align: start;
+  }
+
+  /*
+   * Fenêtre vraiment basse — un téléphone couché, une fenêtre réduite. La bio
+   * n'y tient pas en un écran : le cran n'aurait plus de sens, et la page
+   * redevient une page.
+   */
+  @media (max-height: 38rem) {
+    html.snap {
+      scroll-snap-type: none;
+    }
+
+    .hero {
+      min-height: 0;
+      padding-block: 3rem 2rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-cue-track::after {
+      animation: none;
+      transform: translateY(60%);
+    }
+
+    /* La couture reste, sa lumière part : le trait porte l'information, le
+       balayage n'était que l'annonce. */
+    .seam::after {
+      display: none;
+    }
+
+    .word {
+      opacity: 1;
+      animation: none;
+    }
+  }
+
+  /*
+   * ── La jauge d'avancement ───────────────────────────────────────────
+   *
+   * Une page projet est longue : quatre à six sections, du code, des figures.
+   * Le sommaire du haut dit ce qu'il y a ; passé le premier écran, plus rien ne
+   * dit **où l'on en est**. Un trait de deux pixels le dit sans occuper de
+   * place et sans rien demander.
+   *
+   * Il est dans l'accent du projet : la même couleur que la bande d'en-tête et
+   * que les numéros de section, donc il se lit comme une partie de la page et
+   * non comme un ornement de navigateur.
+   *
+   * Zéro JavaScript. `animation-timeline: scroll(root block)` lie directement
+   * l'avancement du défilement du document à la progression d'une animation —
+   * le compositeur s'en charge, le fil principal n'est jamais sollicité.
+   *
+   * `transform: scaleX` et pas `width` : une largeur animée recalcule la mise
+   * en page à chaque image.
+   *
+   * Sous `@supports` : là où la timeline n'existe pas, la jauge ne s'affiche
+   * pas du tout — une barre figée à zéro serait un bug visible, alors que son
+   * absence ne se remarque pas.
+   */
+  .progress {
+    display: none;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    .progress {
+      position: fixed;
+      inset-block-start: 0;
+      inset-inline: 0;
+      z-index: 50;
+      display: block;
+      height: 2px;
+      transform-origin: 0 50%;
+      transform: scaleX(0);
+      background: var(--progress-accent, var(--color-brand));
+      animation: progress-grow linear both;
+      animation-timeline: scroll(root block);
+    }
+  }
+
+  @keyframes progress-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  /*
+   * ── La parallaxe des figures ────────────────────────────────────────
+   *
+   * Une image dérive lentement dans son cadre pendant qu'elle traverse
+   * l'écran. C'est le seul effet du site qui suit le défilement en continu,
+   * et c'est pour ça qu'il est ici et pas en JavaScript : une timeline de
+   * défilement CSS tourne sur le compositeur, sans repasser par le fil
+   * principal, donc elle ne peut pas saccader quand la page travaille.
+   *
+   * Pourquoi seulement ça en `animation-timeline`, et pas les apparitions ?
+   * Parce que les apparitions sont déjà natives et sans dépendance
+   * (IntersectionObserver + Web Animations, voir `BaseLayout.astro`). Les
+   * porter aussi en CSS voudrait dire tenir deux chemins pour un seul effet,
+   * avec une garde `@supports` entre les deux — deux fois plus de surface pour
+   * le même résultat. Une timeline de défilement ne gagne que là où le JS est
+   * mauvais : le mouvement continu, image par image. C'est exactement ce cas,
+   * et c'est le seul.
+   *
+   * `scale` : sans lui, la dérive découvrirait un bord vide. 6 % de marge pour
+   * 3 % de course de chaque côté.
+   *
+   * Tout est sous `@supports` : là où la timeline n'existe pas, il ne se passe
+   * rien du tout, et l'image reste simplement nette et immobile.
+   */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .parallax {
+        animation: figure-drift linear both;
+        animation-timeline: view();
+        /* La course ne compte que pendant la traversée réelle de l'écran. */
+        animation-range: entry 0% exit 100%;
+        transform: scale(1.06);
+        will-change: transform;
+      }
+    }
+  }
+
+  @keyframes figure-drift {
+    from {
+      transform: scale(1.06) translateY(-3%);
+    }
+    to {
+      transform: scale(1.06) translateY(3%);
+    }
+  }
+
+  /*
+   * ── Le relevé d'une ligne de projet ─────────────────────────────────
+   *
+   * La pile technique et les chiffres partagent la même cellule de grille :
+   * ils se superposent sans `position: absolute`, donc la boîte prend la
+   * hauteur du plus grand et la ligne ne bouge pas d'un pixel au survol. C'est
+   * une lecture qui en remplace une autre, pas un bloc qui apparaît.
+   *
+   * Seule l'`opacity` bascule — jamais `display` ni `visibility`, qui ne
+   * s'animent pas et feraient sauter le texte.
+   */
+  .row-readout > * {
+    grid-area: 1 / 1;
+    transition: opacity 0.2s ease-out;
+  }
+
+  .row-metrics {
+    opacity: 0;
+    color: var(--row-accent, var(--color-brand));
+    text-shadow: var(--glow);
+  }
+
+  .row:hover .row-tech,
+  .row:focus-visible .row-tech {
+    opacity: 0;
+  }
+
+  .row:hover .row-metrics,
+  .row:focus-visible .row-metrics {
+    opacity: 1;
+  }
+
+  /*
+   * ── Le balayage d'une ligne de projet ───────────────────────────────
+   *
+   * Au survol, une bande claire traverse la ligne une fois. Elle est en
+   * `transform` seul — une position animée obligerait le navigateur à
+   * recalculer la mise en page à chaque image, là où une translation ne coûte
+   * qu'une passe de composition.
+   *
+   * `overflow: hidden` sur la ligne, et la bande vit dans un `::after` : rien
+   * à ajouter dans le HTML pour un effet qui ne dit rien à un lecteur d'écran.
+   */
+  .row {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .row::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 40%;
+    pointer-events: none;
+    background: linear-gradient(
+      to right,
+      transparent,
+      var(--row-accent, var(--color-brand)),
+      transparent
+    );
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .row:hover::after,
+    .row:focus-visible::after {
+      /* Discrète : c'est un reflet qui passe, pas un flash. */
+      animation: row-sweep 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
+
+  @keyframes row-sweep {
+    from {
+      opacity: 0.18;
+      transform: translateX(-100%);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(350%);
+    }
+  }
+
+  /*
+   * ── Les schémas des notes ───────────────────────────────────────────
+   *
+   * Du SVG en ligne, calculé à la compilation (`src/components/diagrams/`).
+   * Aucune couleur n'y est écrite : tout passe par les variables du thème,
+   * donc un schéma bascule avec le reste de la page. Trois registres, pas un
+   * de plus :
+   *
+   *   neutre   la géométrie : surfaces, formes, repères (`line`, `rule`)
+   *   accent   ce que le chapitre explique : le rayon, le vecteur, la courbe
+   *   jaune    la lumière, quand il y en a une
+   *
+   * `vector-effect: non-scaling-stroke` garde les traits à la même épaisseur
+   * quelle que soit la largeur d'affichage — un schéma de 1 200 pixels n'a
+   * pas des traits deux fois plus gras qu'un schéma de 600. Il est retiré des
+   * traits qui se dessinent (`.d-draw`) : leur tiret est compté en longueur de
+   * chemin, et ce décompte doit rester dans le repère du SVG.
+   */
+  .diagram-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    --accent: var(--diagram-accent, var(--color-brand));
+  }
+
+  .diagram-svg :is(line, circle, rect, path, polyline, polygon):not(.d-draw) {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .d-shape {
+    fill: var(--color-paper-raised);
+    stroke: var(--color-line);
+    stroke-width: 1.25;
+  }
+
+  .d-line {
+    fill: none;
+    stroke: var(--color-line);
+    stroke-width: 1.25;
+  }
+
+  .d-rule {
+    fill: none;
+    stroke: var(--color-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 5;
+  }
+
+  .d-iso {
+    fill: none;
+    stroke: var(--color-rule);
+    stroke-width: 1;
+  }
+
+  .d-ray {
+    stroke: var(--accent);
+    stroke-width: 1.75;
+  }
+
+  .d-light {
+    stroke: var(--color-accent-yellow);
+    stroke-width: 1.25;
+  }
+
+  .d-probe {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+  }
+
+  .d-lobe {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+
+  .d-foot {
+    stroke: var(--accent);
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+
+  /* Le pas décisif d'une marche : même cercle, trait plein et épaissi. */
+  .d-min {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.25;
+  }
+
+  /* La lumière reçue, case par case : l'opacité porte la donnée. */
+  .d-lit {
+    fill: var(--color-accent-yellow);
+  }
+
+  .d-strip-frame {
+    fill: none;
+    stroke: var(--color-line);
+    stroke-width: 1;
+  }
+
+  .d-dot {
+    fill: var(--color-ink-soft);
+  }
+
+  .d-dot-accent,
+  .d-head-accent {
+    fill: var(--accent);
+  }
+
+  .d-dot-light,
+  .d-head-light {
+    fill: var(--color-accent-yellow);
+  }
+
+  .d-head {
+    fill: var(--color-line);
+  }
+
+  .d-label {
+    fill: var(--color-ink-soft);
+  }
+
+  .d-label-accent {
+    fill: var(--accent);
+  }
+
+  /*
+   * Les animations des schémas : une apparition en file (`.d-anim`, avec son
+   * rang `--i`) et un tracé (`.d-draw`, sur un chemin de longueur 1).
+   *
+   * Elles attendent, en pause, que la figure entre dans le champ — le
+   * révélateur de `BaseLayout.astro` lui pose alors `.is-visible`, et la
+   * pause se lève. `fill: both` applique l'état de départ pendant l'attente,
+   * sans quoi chaque cercle serait visible avant son tour.
+   *
+   * Tout est gardé par `.js` : sans script, `.is-visible` n'arrive jamais, et
+   * une animation en pause resterait invisible pour toujours. Sans script, et
+   * en mouvement réduit, le schéma est donc simplement affiché, complet.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .js .diagram .d-anim {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: d-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(var(--i, 0) * 110ms + 200ms);
+      animation-play-state: paused;
+    }
+
+    .js .diagram .d-draw {
+      stroke-dasharray: 1;
+      animation: d-draw 1.6s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both;
+      animation-play-state: paused;
+    }
+
+    .js .diagram.is-visible :is(.d-anim, .d-draw) {
+      animation-play-state: running;
+    }
+  }
+
+  @keyframes d-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes d-draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /*
+   * ── Les tracés du banc d'essai ──────────────────────────────────────
+   *
+   * Des figures recalculées à la compilation (`src/lib/optim.ts`) et tracées
+   * en SVG (`src/components/plots/`) : fond transparent, et pas une couleur
+   * écrite. Chaque méthode a sa couleur, la même dans toutes les figures —
+   * c'est ce qui permet de lire une courbe sans relire la légende :
+   *
+   *   CG-FR   terre cuite     CG-PR+  sarcelle     BFGS    sauge
+   *   Newton  prune           GD      encre douce
+   *
+   * Les panneaux sont dessinés pour 360 unités de large, et la grille qui les
+   * porte (`.plot-grid`) les tient autour de cette largeur : une colonne sur
+   * téléphone, deux ou trois côte à côte sur écran large. Les libellés
+   * gardent ainsi une taille lisible partout, sans grossir démesurément.
+   */
+  .plot {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    overflow: visible;
+  }
+
+  .plot-grid {
+    display: grid;
+    gap: 1.25rem 1.5rem;
+  }
+
+  .plot-grid[data-panels='2'] {
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  }
+
+  .plot-grid[data-panels='3'] {
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+
+  /* Un panneau seul ne s'étale pas sur toute la page : ses libellés
+     deviendraient deux fois plus gros que le texte qui l'entoure. */
+  .plot-grid[data-panels='1'] {
+    max-width: 30rem;
+    margin-inline: auto;
+  }
+
+  .plot :is(line, polyline, path, rect, circle) {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .plot .p-title {
+    fill: var(--color-ink);
+    font-weight: 600;
+  }
+
+  .plot .p-tick,
+  .plot .p-cat {
+    fill: var(--color-ink-soft);
+    font-size: 9.5px;
+  }
+
+  .plot .p-label {
+    fill: var(--color-ink-soft);
+  }
+
+  .plot .p-grid {
+    stroke: var(--color-rule);
+    stroke-width: 1;
+  }
+
+  .plot .p-axis {
+    stroke: var(--color-line);
+    stroke-width: 1;
+  }
+
+  .plot .p-guide {
+    fill: none;
+    stroke: var(--color-line);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+  }
+
+  .plot .p-level {
+    fill: none;
+    stroke: var(--color-rule);
+    stroke-width: 1;
+  }
+
+  .s-fr { --s: var(--color-accent-orange); }
+  .s-pr { --s: var(--color-accent-cyan); }
+  .s-bfgs { --s: var(--color-accent-green); }
+  .s-newton { --s: var(--color-accent-purple); }
+  .s-gd { --s: var(--color-ink-soft); }
+  .s-n5 { --s: var(--color-accent-yellow); }
+  .s-n25 { --s: var(--color-accent-pink); }
+  .s-n75 { --s: var(--color-accent-purple); }
+
+  :is(.plot, .legend-swatch) .p-line {
+    fill: none;
+    stroke: var(--s);
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+  }
+
+  :is(.plot, .legend-swatch) .p-dash {
+    stroke-dasharray: 5 4;
+  }
+
+  :is(.plot, .legend-swatch) .p-cross {
+    fill: none;
+    stroke: var(--s);
+    stroke-width: 1.4;
+  }
+
+  .plot .p-dot {
+    fill: var(--s);
+  }
+
+  .plot .p-open {
+    fill: var(--color-paper);
+    stroke: var(--s);
+    stroke-width: 1.4;
+  }
+
+  .plot .p-bar {
+    fill: var(--s);
+  }
+
+  .plot .p-star {
+    fill: var(--color-ink-strong);
+  }
+
+  /*
+   * La carte de chaleur : une seule couleur, plus ou moins couvrante. C'est,
+   * avec la lueur et la poussière, le troisième endroit où le site mélange des
+   * couleurs — et le seul où l'opacité porte une donnée. Le nombre est écrit
+   * dans la case : la teinte n'en est que le rappel, jamais la seule source.
+   */
+  .plot .p-heat {
+    fill: var(--color-brand);
+  }
+
+  .plot .p-cell {
+    fill: var(--color-ink-strong);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /*
+   * L'animation en boucle (`PathPanel`, option `loop`) : deux versions du même
+   * chemin, l'une animée en SMIL, l'autre immobile. On n'en montre qu'une. En
+   * mouvement réduit, c'est l'immobile — SMIL ne connaît pas
+   * `prefers-reduced-motion`, c'est donc au CSS de retirer l'animée du rendu.
+   */
+  .plot .loop-still {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .plot .loop-still {
+      display: inline;
+    }
+
+    .plot .loop-anim {
+      display: none;
+    }
+  }
+
+
+  /*
+   * ── La lueur ────────────────────────────────────────────────────────
+   *
+   * Sur fond sombre, un caractère clair s'étale déjà un peu de lui-même —
+   * c'est la diffusion de l'écran, et c'est ce qui fait qu'un éditeur en thème
+   * sombre paraît lumineux. Le site le pose franchement, sur les seuls
+   * éléments qui portent l'accent : deux ombres de texte, l'une serrée pour
+   * épaissir le trait d'un demi-pixel, l'autre large pour le halo.
+   *
+   * C'est le seul endroit du site où une couleur se mélange à une autre. Un
+   * flou n'existe pas sans mélange, et une lueur sans flou n'est pas une
+   * lueur — d'où l'exception, tenue ici et nulle part ailleurs.
+   *
+   * En thème clair, `--glow` vaut `none` : sur du papier, un halo salit.
+   */
+  :root {
+    --glow: none;
+    --glow-strong: none;
+  }
+
+  .dark {
+    /*
+     * Le rayon est en `em` : une lueur de douze pixels autour d'un titre de
+     * 48 est un liseré, autour d'un libellé de 11 c'est une tache. En `em`,
+     * elle garde la même proportion à toutes les tailles — et donc sur tous
+     * les écrans, la taille de base suivant la fenêtre.
+     */
+    --glow:
+      0 0 1px currentColor,
+      0 0 0.75em currentColor;
+    --glow-strong:
+      0 0 1px currentColor,
+      0 0 1.4em currentColor;
+    /*
+     * Un titre de 2,75rem avec une lueur de 0,75em porte un halo de 45 pixels :
+     * proportionnel, donc juste sur un libellé de 11px et illisible sur une
+     * accroche. Les gros corps prennent donc un rayon relatif plus court — ce
+     * qu'on veut n'est pas « la même lueur », c'est « la même impression ».
+     */
+    --glow-title:
+      0 0 1px currentColor,
+      0 0 0.28em currentColor;
+  }
+
+  .glow {
+    text-shadow: var(--glow);
+  }
+
+  .glow-strong {
+    text-shadow: var(--glow-strong);
+  }
+
+  .glow-title {
+    text-shadow: var(--glow-title, none);
+  }
+
+  /*
+   * ── La ligne d'un projet ────────────────────────────────────────────
+   *
+   * Un projet n'est plus une planche : c'est une ligne, comme dans un
+   * sommaire. Au repos, elle n'a qu'un filet à gauche, de la couleur du
+   * projet. Au survol, le filet s'épaissit et la ligne se décale de sa
+   * largeur — le mouvement dit « celle-ci », sans rien allumer ni agrandir.
+   *
+   * Le décalage est en `padding`, pas en `transform` : le texte reste sur la
+   * grille de pixels, donc parfaitement net pendant le geste.
+   */
+  .row {
+    border-left: 2px solid var(--color-rule);
+    padding-left: 1.25rem;
+    transition:
+      border-color 0.18s ease-out,
+      border-left-width 0.18s ease-out,
+      padding-left 0.18s ease-out,
+      background-color 0.18s ease-out;
+  }
+
+  .row:hover,
+  .row:focus-visible {
+    border-left-width: 4px;
+    border-left-color: var(--row-accent, var(--color-brand));
+    padding-left: calc(1.25rem - 2px);
+    background-color: var(--color-paper-raised);
+  }
+
+  /*
+   * Le titre prend l'accent du projet au survol, et sa lueur ; l'année suit,
+   * plus discrètement. Les deux bouts de la ligne réagissent, donc c'est la
+   * ligne entière qu'on sent réagir, pas un mot dedans.
+   */
+  .row:hover .row-title,
+  .row:focus-visible .row-title {
+    color: var(--row-accent, var(--color-brand));
+    text-shadow: var(--glow);
+  }
+
+  .row:hover .row-year,
+  .row:focus-visible .row-year {
+    color: var(--row-accent, var(--color-brand));
+  }
+
+  .row-title,
+  .row-year {
+    transition:
+      color 0.18s ease-out,
+      text-shadow 0.18s ease-out;
+  }
+
+  /*
+   * ── Liens de texte ──────────────────────────────────────────────────
+   * Un soulignement fin, décollé du texte, qui s'épaissit au survol. Aucun
+   * fond, aucune capsule : dans une page sobre, un lien se signale par son
+   * trait.
+   */
+  .link {
+    color: var(--color-brand);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.25em;
+    transition:
+      color 0.15s ease-out,
+      text-decoration-thickness 0.15s ease-out,
+      text-shadow 0.15s ease-out;
+  }
+
+  .link:hover {
+    color: var(--color-brand-strong);
+    text-decoration-thickness: 2px;
+    text-shadow: var(--glow);
+  }
+
+  /*
+   * Blocs de code générés par Shiki (composant <Code /> d'Astro).
+   *
+   * Tout est en rem, y compris le corps : à 0.875rem, une ligne de code fait
+   * exactement sept huitièmes du texte courant, sur un écran comme sur un
+   * autre. En `px`, elle aurait rapetissé à vue d'œil à mesure que la page
+   * grandit — c'était l'incohérence la plus visible du site.
+   */
+  /*
+   * Le double thème de Shiki : le clair est appliqué par défaut, le sombre
+   * attend dans `--shiki-dark` et `--shiki-dark-bg`. On le pose sous `.dark`
+   * — la classe qui pilote tout le site —, et pas sous
+   * `prefers-color-scheme`, qui ignorerait un choix fait avec le bouton.
+   */
+  .dark .astro-code,
+  .dark .astro-code span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+
+  .dark .astro-code span {
+    background-color: transparent !important;
+  }
+
+  .astro-code {
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.7;
+    tab-size: 4;
+  }
+
+  /*
+   * Apparition au scroll. L'animation est jouée par Motion One (voir
+   * BaseLayout.astro) ; le CSS ne fait que cacher l'état initial, et
+   * uniquement si JS est actif (classe `.js` posée par le script du <head>).
+   * Sans JS, ou si le script échoue, le contenu reste visible.
+   */
+  .js .reveal {
+    opacity: 0;
+  }
+
+  .js .reveal.is-visible {
+    opacity: 1;
+  }
+}
+
+/*
+ * ── Démo en direct, quand le direct n'a pas lieu ──────────────────────
+ * Si le navigateur n'a pas WebGPU, le module de rendu le dit et pose
+ * `data-chess-state="unsupported"` sur la figure. Elle se replie alors sur son
+ * message : plus de badge « en direct » (il mentirait), plus de barre de
+ * commandes (elle ne commande rien), et le cadre 4/3 rend sa hauteur.
+ *
+ * Ces règles sont volontairement hors `@layer` : elles doivent l'emporter sur
+ * les utilitaires Tailwind posés dans le composant (`inline-flex`, `absolute`,
+ * `aspect-[4/3]`), et une couche `components` passerait dessous quelle que
+ * soit sa spécificité.
+ */
+[data-chess][data-chess-state='unsupported'] [data-chess-live],
+[data-chess][data-chess-state='unsupported'] [data-chess-controls] {
+  display: none;
+}
+
+[data-chess][data-chess-state='unsupported'] [data-chess-stage] {
+  aspect-ratio: auto;
+}
+
+[data-chess][data-chess-state='unsupported'] [data-chess-status] {
+  position: static;
+  padding-block: 2.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

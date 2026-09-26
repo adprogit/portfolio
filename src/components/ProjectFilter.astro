@@ -1,0 +1,211 @@
+---
+/**
+ * Le filtre par tag, en haut de la liste des projets.
+ *
+ * C'est un `<details>` : on clique sur sa ligne, les options descendent. Rien
+ * n'est ouvert au repos — un mur de dix boutons au-dessus de la liste
+ * prendrait plus de place que la liste elle-même, et on ne filtre pas en
+ * arrivant, on filtre après avoir regardé.
+ *
+ * La ligne dit toujours ce qu'on voit (« Tout · 10 projets »), si bien qu'un
+ * filtre actif ne peut pas se faire oublier une fois le panneau refermé.
+ *
+ * Deux groupes, parce qu'on ne cherche pas de la même façon : le langage qu'on
+ * connaît, ou le domaine qui intéresse. Les comptes sont calculés ici, à la
+ * compilation, et seuls les tags réellement portés par un projet sont
+ * proposés : un filtre qui ne rend rien n'est jamais offert.
+ *
+ * Sans JS, le panneau ne s'affiche pas du tout (`html:not(.js)`) : il
+ * vaut mieux pas de filtre que dix boutons morts, et la liste complète reste
+ * entière en dessous.
+ */
+import Icon from './Icon.astro';
+import { tagGroups, tagLabels, type ResolvedProject, type Tag } from '../data/projects';
+import { ui, useT, type UIKey } from '../i18n/ui';
+import type { Locale } from '../i18n/config';
+
+interface Props {
+  projects: ResolvedProject[];
+  lang: Locale;
+}
+
+const { projects, lang } = Astro.props;
+const t = useT(lang);
+
+/** Combien de projets portent chaque tag. */
+const counts = new Map<Tag, number>();
+for (const project of projects) {
+  for (const tag of project.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+}
+
+const label = (tag: Tag) => tagLabels[tag] ?? t(`tag.${tag}` as UIKey);
+
+/** Un groupe ne sort que s'il lui reste au moins un tag porté. */
+const groups = (['langs', 'fields'] as const)
+  .map((name) => ({
+    name,
+    title: t(`filter.${name}` as UIKey),
+    tags: tagGroups[name].filter((tag) => counts.has(tag)),
+  }))
+  .filter((group) => group.tags.length > 0);
+
+const chip =
+  'rounded border border-rule px-2.5 py-1 font-mono text-xs text-ink-soft transition-colors hover:border-line hover:text-ink-strong aria-pressed:border-brand aria-pressed:text-brand aria-pressed:[text-shadow:var(--glow)]';
+---
+
+<details class="tag-filter reveal mt-6" data-filter>
+  <summary
+    class="flex cursor-pointer list-none items-center gap-3 border-y border-rule py-2.5 font-mono text-xs text-ink-soft transition-colors hover:text-ink-strong"
+  >
+    <span class="text-ink-strong">{t('filter.open')}</span>
+
+    {/*
+      Ce que la liste montre en ce moment. Le script le réécrit à chaque clic,
+      et `data-count` lui donne le gabarit traduit à remplir — il n'a pas accès
+      au dictionnaire, lui.
+    */}
+    <span data-filter-current data-count={ui[lang]['home.count']} class="truncate">
+      {t('filter.all')} · {t('home.count', { n: projects.length })}
+    </span>
+
+    <Icon name="chevron-down" class="ml-auto h-4 w-4 shrink-0" />
+  </summary>
+
+  <div class="grid gap-4 py-4" role="group" aria-label={t('filter.label')}>
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" class={chip} data-tag="" aria-pressed="true">
+        {t('filter.all')}
+      </button>
+    </div>
+
+    {
+      groups.map((group) => (
+        <div class="grid gap-2 sm:grid-cols-[6.5rem_1fr] sm:items-baseline sm:gap-4">
+          <p class="font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase">
+            {group.title}
+          </p>
+          <div class="flex flex-wrap gap-2">
+            {group.tags.map((tag) => (
+              <button type="button" class={chip} data-tag={tag} aria-pressed="false">
+                {label(tag)}
+                <span class="ml-1.5 tabular-nums opacity-60">{counts.get(tag)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+  </div>
+</details>
+
+<style>
+  /*
+   * Sans JS, les boutons ne filtreraient rien : le panneau n'existe pas.
+   *
+   * La classe s'appelle `tag-filter` et non `filter` : `filter` est un
+   * utilitaire Tailwind (celui de `filter: blur() …`), et la règle d'ici
+   * serait entrée en collision avec lui sur le même élément.
+   */
+  :global(html:not(.js)) .tag-filter {
+    display: none;
+  }
+
+  /* Le marqueur natif du <summary>, dans les deux dialectes. */
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* Le chevron pointe vers le bas, puis vers le haut une fois ouvert. */
+  details[open] summary :global(svg) {
+    transform: rotate(180deg);
+  }
+
+  summary :global(svg) {
+    transition: transform 0.2s ease-out;
+  }
+</style>
+
+<script>
+  /**
+   * Le filtre lui-même. Il ne réordonne rien et ne reconstruit rien : il pose
+   * `hidden` sur les lignes qui ne portent pas le tag, puis sur les familles
+   * qui n'ont plus de ligne visible.
+   */
+  const setup = () => {
+    const panel = document.querySelector<HTMLDetailsElement>('[data-filter]');
+    const list = document.querySelector<HTMLElement>('[data-project-list]');
+    if (!panel || !list) return;
+
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('[data-tag]')];
+    const current = panel.querySelector<HTMLElement>('[data-filter-current]');
+    const rows = [...list.querySelectorAll<HTMLElement>('[data-tags]')];
+    const families = [...list.querySelectorAll<HTMLElement>('[data-family]')];
+    const empty = list.querySelector<HTMLElement>('[data-filter-empty]');
+
+    /** Le libellé d'un tag, tel que le bouton l'affiche déjà — sans son compte. */
+    const labelOf = (tag: string) =>
+      buttons
+        .find((button) => button.dataset.tag === tag)
+        ?.childNodes[0]?.textContent?.trim() ?? tag;
+
+    const apply = (tag: string, scroll = false) => {
+      let shown = 0;
+
+      for (const row of rows) {
+        const tags = (row.dataset.tags ?? '').split(' ');
+        const match = !tag || tags.includes(tag);
+        row.hidden = !match;
+        if (match) shown++;
+        /*
+         * Une ligne révélée par le filtre n'a peut-être jamais croisé
+         * l'observateur d'apparition : sans ça, elle resterait à zéro
+         * d'opacité, visible pour le DOM et invisible à l'œil.
+         */
+        if (match) row.querySelector('.reveal')?.classList.add('is-visible');
+      }
+
+      // Une famille dont toutes les lignes sont masquées s'efface avec elles.
+      for (const family of families) {
+        const alive = [...family.querySelectorAll<HTMLElement>('[data-tags]')].some(
+          (row) => !row.hidden
+        );
+        family.hidden = !alive;
+      }
+
+      if (empty) empty.hidden = shown > 0;
+
+      for (const button of buttons) {
+        button.setAttribute('aria-pressed', String((button.dataset.tag ?? '') === tag));
+      }
+
+      if (current) {
+        const count = current.dataset.count ?? '{n}';
+        current.textContent = `${labelOf(tag)} · ${count.replace('{n}', String(shown))}`;
+      }
+
+      /*
+       * L'adresse porte le filtre, pour qu'une sélection se partage. En
+       * `replaceState` : ni saut de page, ni une entrée d'historique par clic.
+       */
+      const url = new URL(window.location.href);
+      url.hash = tag ? `tag-${tag}` : '';
+      history.replaceState(null, '', url.toString() || window.location.pathname);
+
+      if (scroll) panel.scrollIntoView({ block: 'nearest' });
+    };
+
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        apply(button.dataset.tag ?? '', true);
+        panel.open = false;
+      });
+    }
+
+    // Une adresse du genre `…/#tag-cpp` arrive filtrée.
+    const wanted = decodeURIComponent(window.location.hash).match(/^#tag-(.+)$/)?.[1];
+    if (wanted && buttons.some((button) => button.dataset.tag === wanted)) apply(wanted);
+  };
+
+  setup();
+  document.addEventListener('astro:page-load', setup);
+</script>

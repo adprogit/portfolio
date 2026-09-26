@@ -1,0 +1,71 @@
+---
+/**
+ * Chapitre 04 — le sphere tracing, exécuté pour de vrai.
+ *
+ * La scène est une union de formes ; le rayon avance de 70 % de la distance
+ * lue, comme `Scene::march`. Les cercles tracés sont ceux que la boucle a
+ * réellement parcourus — `data-steps` en donne le nombre, et un changement de
+ * scène ou de constante le changerait. Ils apparaissent l'un après l'autre.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import {
+  boxSdf,
+  circleSdf,
+  normalize,
+  sphereTrace,
+  sub,
+  union,
+  type Vec,
+} from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const a = { c: [340, 64] as Vec, r: 42 };
+const box = { c: [478, 196] as Vec, h: [52, 34] as Vec };
+const target = { c: [584, 112] as Vec, r: 32 };
+const scene = union(circleSdf(a), boxSdf(box), circleSdf(target));
+
+const origin: Vec = [40, 178];
+const direction = normalize(sub(target.c, origin));
+const { steps, hit } = sphereTrace(origin, direction, scene);
+
+if (!hit) throw new Error('SphereTracing : le rayon du schéma ne touche plus rien.');
+---
+
+<svg
+  class="diagram-svg"
+  viewBox="0 0 640 260"
+  role="img"
+  aria-label={t('diagram.sphereTracing.alt')}
+  data-steps={steps.length}
+>
+  <circle class="d-shape" cx={a.c[0]} cy={a.c[1]} r={a.r} />
+  <rect
+    class="d-shape"
+    x={box.c[0] - box.h[0]}
+    y={box.c[1] - box.h[1]}
+    width={box.h[0] * 2}
+    height={box.h[1] * 2}
+  />
+  <circle class="d-shape" cx={target.c[0]} cy={target.c[1]} r={target.r} />
+
+  <line class="d-rule" x1={origin[0]} y1={origin[1]} x2={hit[0]} y2={hit[1]} />
+
+  {steps.map(({ p, r }, i) => (
+    <g class="d-anim" style={`--i: ${i}`}>
+      <circle class="d-probe" cx={p[0].toFixed(1)} cy={p[1].toFixed(1)} r={r.toFixed(1)} />
+      <circle class="d-dot-accent" cx={p[0].toFixed(1)} cy={p[1].toFixed(1)} r="2.5" />
+    </g>
+  ))}
+
+  <g class="d-anim" style={`--i: ${steps.length}`}>
+    <circle class="d-dot-accent" cx={hit[0].toFixed(1)} cy={hit[1].toFixed(1)} r="4.5" />
+  </g>
+
+  <text class="d-label" x={origin[0]} y={origin[1] + 24}>{t('diagram.eye')}</text>
+  <text class="d-label-accent" x="40" y="30">
+    {steps.length} {t('diagram.steps')} · ×0.7
+  </text>
+</svg>

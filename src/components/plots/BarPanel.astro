@@ -1,0 +1,54 @@
+---
+/**
+ * Des barres groupées : une catégorie par groupe, une barre par série. Une
+ * valeur absente (aucun run réussi) s'écrit « — » au pied de la catégorie.
+ */
+import Axes from './Axes.astro';
+import { MARGIN, PANEL, scale } from '../../lib/plot';
+
+interface Props {
+  title?: string;
+  alt: string;
+  categories: string[];
+  series: { key: string; values: number[] }[];
+  y: { domain: [number, number]; log?: boolean; label: string };
+}
+
+const { title, alt, categories, series, y } = Astro.props;
+const [left, right] = [MARGIN.left, PANEL.width - MARGIN.right];
+const bottom = PANEL.height - MARGIN.bottom;
+const sy = scale(y.domain, [bottom, MARGIN.top], y.log);
+const band = (right - left) / categories.length;
+const barW = Math.min(14, (band * 0.7) / series.length);
+const xOf = (c: number, s: number) => left + band * (c + 0.5) + (s - series.length / 2) * barW;
+
+// Axe des x sans graduations : les catégories en tiennent lieu.
+const sx = Object.assign((v: number) => v, { ticks: [] as number[], log: false });
+const base = y.log ? y.domain[0] : 0;
+---
+
+<svg class="plot" viewBox={`0 0 ${PANEL.width} ${PANEL.height}`} role="img" aria-label={alt}>
+  <Axes title={title} sx={sx} sy={sy} xLabel="" yLabel={y.label} />
+
+  {series.map((s, si) => (
+    <g class={`s-${s.key}`}>
+      {s.values.map((value, ci) =>
+        Number.isFinite(value) && value > 0 ? (
+          <rect
+            class="p-bar"
+            x={xOf(ci, si)}
+            y={sy(Math.max(value, base))}
+            width={barW - 1.5}
+            height={Math.max(sy(base) - sy(Math.max(value, base)), 0.8)}
+          />
+        ) : (
+          <text class="p-tick" x={xOf(ci, si) + barW / 2} y={bottom - 4} text-anchor="middle">—</text>
+        )
+      )}
+    </g>
+  ))}
+
+  {categories.map((c, ci) => (
+    <text class="p-cat" x={left + band * (ci + 0.5)} y={bottom + 13} text-anchor="middle">{c}</text>
+  ))}
+</svg>

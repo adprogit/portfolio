@@ -1,0 +1,45 @@
+---
+/**
+ * Pas de nom. Le profil professionnel, lui, est repris de l'accueil : c'est le
+ * bas de page qu'on cherche quand on veut répondre, et on n'a pas envie de
+ * remonter de dix projets pour le retrouver.
+ */
+import Icon from './Icon.astro';
+import { links, profile } from '../data/profile';
+import type { Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useT(lang);
+const me = profile[lang];
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-rule">
+  <div
+    class="shell flex flex-col gap-2 px-5 py-7 font-mono text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-8"
+  >
+    <p>{me.role} · {year}</p>
+
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+      {
+        links.map((link) => (
+          <a
+            class="link inline-flex items-center gap-2"
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name={link.icon} class="h-3.5 w-3.5" />
+            {link.label}
+          </a>
+        ))
+      }
+      <p>{t('footer.built')}</p>
+    </div>
+  </div>
+</footer>

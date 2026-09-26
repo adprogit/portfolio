@@ -1,0 +1,166 @@
+---
+/**
+ * Une section d'explication d'un projet : titre + blocs (texte, liste, code,
+ * visuel).
+ *
+ * Deux largeurs y cohabitent, et le partage n'est pas « texte contre visuel »
+ * mais « ce qui se lit contre ce qui se regarde ». Titre, paragraphes, listes
+ * **et blocs de code** tiennent dans `measure` : le code est du texte, il
+ * commence au même pixel que le paragraphe qui l'annonce. Les figures, les
+ * graphiques, les vidéos et le rendu en direct n'ont pas de classe de largeur :
+ * ils remplissent la colonne de la page, et sont donc alignés sur le bandeau.
+ */
+import { Code } from 'astro:components';
+import Figure from './Figure.astro';
+import VideoFigure from './VideoFigure.astro';
+import BarChart from './BarChart.astro';
+import ChessLab from './ChessLab.astro';
+import Diagram from './diagrams/Diagram.astro';
+import { toneText, type ResolvedSection, type Tone } from '../data/projects';
+import type { Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  section: ResolvedSection;
+  lang: Locale;
+  /** Groupe lightbox et position de chaque visuel, par `src`. */
+  group: string;
+  shotIndex: Map<string, number>;
+  /** Accent du projet : il colore le numéro de section et les puces. */
+  tone: Tone;
+  /**
+   * Position des schémas dans l'ordre de lecture, par clé — la même
+   * numérotation que les images, pour des pages qui n'ont que des schémas.
+   */
+  diagramIndex?: Map<string, number>;
+  /** Position de chaque image dans le lightbox, quand elle diffère de son numéro. */
+  lightboxIndex?: Map<string, number>;
+}
+
+const { section, lang, group, shotIndex, tone, diagramIndex, lightboxIndex } = Astro.props;
+const t = useT(lang);
+const accent = toneText[tone];
+---
+
+<section
+  class="mt-14 scroll-mt-20"
+  id={section.id}
+  data-reveal-group
+  aria-labelledby={`${section.id}-title`}
+>
+  <div class="measure reveal flex items-baseline gap-3" data-reveal-blur>
+    <span class:list={['glow font-mono text-xs tabular-nums', accent]} aria-hidden="true">
+      {section.kicker}
+    </span>
+    <h2 id={`${section.id}-title`} class="text-heading text-balance text-ink-strong">
+      {section.title}
+    </h2>
+  </div>
+
+  <div class="mt-5 space-y-5">
+    {
+      section.blocks.map((block) => {
+        switch (block.type) {
+          case 'text':
+            return (
+              <p class="measure reveal leading-relaxed text-pretty text-ink">
+                {block.content}
+              </p>
+            );
+
+          case 'list':
+            return (
+              <ul class="measure reveal space-y-2.5">
+                {block.items.map((item) => (
+                  <li class="flex gap-3 leading-relaxed text-pretty text-ink">
+                    {/* Un tiret cadratin plutôt qu'une pastille : c'est la
+                        ponctuation d'une liste, pas un objet de plus. */}
+                    <span class:list={['shrink-0 font-mono', accent]} aria-hidden="true">
+                      —
+                    </span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            );
+
+          case 'code':
+            return (
+              <figure class="measure reveal">
+                <div class="overflow-hidden rounded border border-rule">
+                  {/*
+                    Gruvbox, en clair et en sombre : un thème de code chaud,
+                    posé sur une page chaude. Dracula, avec son fond bleuté,
+                    jurait sur le charbon. Les deux jeux de couleurs sont émis
+                    en variables ; `global.css` bascule de l'un à l'autre avec
+                    `.dark`, comme tout le reste.
+                  */}
+                  <Code
+                    code={block.code}
+                    lang={block.lang as 'cpp'}
+                    themes={{ light: 'gruvbox-light-medium', dark: 'gruvbox-dark-medium' }}
+                    defaultColor="light"
+                  />
+                </div>
+                {/*
+                  D'où vient l'extrait, avant ce qu'il montre. Un chemin de
+                  fichier se vérifie ; « écrit pour ce cours » prévient qu'il
+                  n'y a rien à vérifier dans le dépôt.
+                */}
+                {(block.caption || block.source) && (
+                  <figcaption class="mt-2 font-mono text-xs leading-relaxed text-ink-soft">
+                    {block.source && (
+                      <span class:list={['block', accent]}>
+                        {block.source === 'course' ? t('code.course') : block.source}
+                      </span>
+                    )}
+                    {block.caption}
+                  </figcaption>
+                )}
+              </figure>
+            );
+
+          case 'media':
+            return (
+              <Figure
+                shot={block.shot}
+                group={group}
+                lang={lang}
+                index={shotIndex.get(block.shot.image.src) ?? 0}
+                position={lightboxIndex?.get(block.shot.image.src)}
+              />
+            );
+
+          case 'video':
+            return <VideoFigure clip={block.clip} />;
+
+          case 'chart':
+            return <BarChart chart={block.chart} tone={tone} />;
+
+          case 'live':
+            return <ChessLab lang={lang} />;
+
+          case 'placeholder':
+            /* La place d'une figure à venir — seulement dans un brouillon. */
+            return (
+              <figure class="measure reveal">
+                <div class="flex aspect-[16/7] items-center justify-center rounded border border-dashed border-line font-mono text-xs tracking-[0.14em] text-ink-soft uppercase">
+                  {t('placeholder.figure')}
+                </div>
+              </figure>
+            );
+
+          case 'diagram':
+            return (
+              <Diagram
+                diagram={block.diagram}
+                caption={block.caption}
+                lang={lang}
+                index={diagramIndex?.get(block.diagram) ?? 0}
+              />
+            );
+        }
+      })
+    }
+  </div>
+</section>

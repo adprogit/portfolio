@@ -1,0 +1,25 @@
+---
+/** FR et PR sur Rosenbrock, 100 départs : médiane, moyenne, maximum des itérations. */
+import BarPanel from '../plots/BarPanel.astro';
+import Legend from '../plots/Legend.astro';
+import { frprRosenbrock } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const { fr, pr } = frprRosenbrock();
+---
+
+<Legend entries={[{ key: 'fr', label: 'FR' }, { key: 'pr', label: 'PR+' }]} />
+<div class="plot-grid" data-panels="1">
+  <BarPanel
+    alt={t('diagram.frprRosenbrock.alt')}
+    categories={['x̃', 'x̄', 'max']}
+    series={[
+      { key: 'fr', values: [fr.median, fr.mean, fr.max] },
+      { key: 'pr', values: [pr.median, pr.mean, pr.max] },
+    ]}
+    y={{ domain: [0, Math.ceil(fr.max / 50) * 50], label: t('plot.iterations') }}
+  />
+</div>

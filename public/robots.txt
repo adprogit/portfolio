@@ -1,0 +1,10 @@
+# Ce site n'a pas vocation à être trouvé : il se lit depuis un lien de CV.
+#
+# Le blocage se fait par `noindex` (en-tête `X-Robots-Tag` et <meta robots>),
+# pas ici. Un `Disallow: /` serait contre-productif : il empêcherait le robot
+# de lire la page, donc de voir le `noindex` — et une URL citée ailleurs
+# pourrait rester listée dans les résultats sans avoir jamais été visitée.
+#
+# On laisse donc l'exploration ouverte pour que le refus d'indexation soit lu.
+User-agent: *
+Allow: /

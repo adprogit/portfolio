@@ -1,0 +1,207 @@
+---
+/**
+ * L'échiquier du projet ray marcher, rendu en direct par le GPU.
+ *
+ * Le module de rendu ne se charge que quand la figure approche de l'écran :
+ * il pèse plus lourd que le reste de la page, et la plupart des visiteurs ne
+ * descendront pas jusqu'ici.
+ *
+ * Sans WebGPU, la figure se remplace par un texte qui dit pourquoi — et la
+ * liste des coups reste lisible, elle ne dépend pas du rendu.
+ */
+import Icon from './Icon.astro';
+import { GAME } from '../lib/chess/game';
+import { useT } from '../i18n/ui';
+import type { Locale } from '../i18n/config';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useT(lang);
+
+/** Les demi-coups sont numérotés à partir de 1 ; 0 est la position initiale. */
+const moves = GAME.map((move) => move.san);
+---
+
+<figure class="reveal" data-chess>
+  <div class="overflow-hidden rounded border border-rule bg-paper-raised">
+    <div data-chess-stage class="relative aspect-[4/3] bg-paper-sunken">
+      {/* Petit badge « en direct », discret, par-dessus le rendu. */}
+      <p
+        data-chess-live
+        class="glow pointer-events-none absolute top-3 left-3 z-10 inline-flex items-center gap-2 font-mono text-2xs tracking-[0.14em] text-brand uppercase"
+      >
+        <span
+          class="h-1.5 w-1.5 animate-pulse rounded-full bg-brand"
+          aria-hidden="true"
+        ></span>
+        {t('chess.live')}
+      </p>
+      <canvas
+        data-chess-canvas
+        class="absolute inset-0 h-full w-full opacity-0 transition-opacity duration-500 data-[ready=true]:opacity-100"
+        role="img"
+        aria-label={t('chess.canvas')}></canvas>
+
+      {/* Remplacé par le canvas dès que le rendu démarre. */}
+      <p
+        data-chess-status
+        data-unsupported={t('chess.unsupported')}
+        class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-pretty text-ink-soft"
+      >
+        {t('chess.loading')}
+      </p>
+    </div>
+
+    <div data-chess-controls class="flex items-center gap-3 border-t border-rule px-4 py-3">
+      <button
+        type="button"
+        data-chess-prev
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-rule text-ink transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-rule disabled:hover:text-ink"
+        aria-label={t('chess.prev')}
+        disabled
+      >
+        <Icon name="chevron-left" class="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        data-chess-next
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded border border-rule text-ink transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-rule disabled:hover:text-ink"
+        aria-label={t('chess.next')}
+        disabled
+      >
+        <Icon name="chevron-right" class="h-4 w-4" />
+      </button>
+
+      {/* Le compteur est annoncé aux lecteurs d'écran à chaque changement. */}
+      <p
+        data-chess-move
+        class="min-w-0 flex-1 truncate font-mono text-xs text-ink-soft"
+        role="status"
+        aria-live="polite"
+      >
+        {t('chess.start')}
+      </p>
+
+      <button
+        type="button"
+        data-chess-reset
+        class="shrink-0 rounded-lg border border-line px-2.5 py-1.5 font-mono text-xs text-ink-soft transition-colors hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+        disabled>{t('chess.reset')}</button
+      >
+    </div>
+  </div>
+
+  <figcaption class="mt-3 text-sm leading-relaxed text-pretty text-ink-soft">
+    {t('chess.caption')}
+  </figcaption>
+</figure>
+
+<script
+  is:inline
+  type="application/json"
+  data-chess-moves
+  set:html={JSON.stringify(moves).replace(/</g, '\\u003c')}
+/>
+
+<script>
+  import type { ChessHandle } from '../lib/chess';
+
+  const setup = () => {
+    const root = document.querySelector<HTMLElement>('[data-chess]');
+    if (!root) return;
+
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-chess-canvas]');
+    const status = root.querySelector<HTMLElement>('[data-chess-status]');
+    const prev = root.querySelector<HTMLButtonElement>('[data-chess-prev]');
+    const next = root.querySelector<HTMLButtonElement>('[data-chess-next]');
+    const reset = root.querySelector<HTMLButtonElement>('[data-chess-reset]');
+    const label = root.querySelector<HTMLElement>('[data-chess-move]');
+    if (!canvas || !status || !prev || !next || !reset || !label) return;
+
+    const data = document.querySelector<HTMLScriptElement>('[data-chess-moves]');
+    const moves: string[] = data ? JSON.parse(data.textContent ?? '[]') : [];
+
+    const strings = {
+      start: label.textContent ?? '',
+      unsupported: status.dataset.unsupported ?? '',
+    };
+
+    let handle: ChessHandle | null = null;
+
+    /** « 12. O-O-O » ou « 12… Rd8 » selon le camp qui vient de jouer. */
+    const describe = (ply: number) => {
+      if (ply === 0) return strings.start;
+      const san = moves[ply - 1] ?? '';
+      const number = Math.floor((ply - 1) / 2) + 1;
+      return ply % 2 === 1 ? `${number}. ${san}` : `${number}… ${san}`;
+    };
+
+    const refresh = () => {
+      if (!handle) return;
+      const { ply, plyCount } = handle;
+      prev.disabled = ply === 0;
+      next.disabled = ply === plyCount - 1;
+      reset.disabled = ply === 0;
+      label.textContent = describe(ply);
+    };
+
+    const go = (ply: number) => {
+      handle?.setPly(ply);
+      refresh();
+    };
+
+    prev.addEventListener('click', () => go((handle?.ply ?? 0) - 1));
+    next.addEventListener('click', () => go((handle?.ply ?? 0) + 1));
+    reset.addEventListener('click', () => go(0));
+
+    // Le module de rendu ne descend qu'à l'approche de la figure.
+    const start = async () => {
+      const { mountChessBoard } = await import('../lib/chess');
+      handle = await mountChessBoard(canvas);
+
+      if (!handle) {
+        /*
+         * Sans WebGPU, la figure se replie sur sa phrase : le badge « en
+         * direct » ne doit pas rester allumé sur un rendu qui n'a pas lieu, et
+         * une barre de commandes qui ne commande rien n'a pas à occuper
+         * l'écran. La mise en forme du repli vit dans `global.css`.
+         */
+        status.textContent = strings.unsupported;
+        root.dataset.chessState = 'unsupported';
+        return;
+      }
+      status.remove();
+      refresh();
+    };
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer.disconnect();
+          void start();
+        },
+        { rootMargin: '300px 0px' }
+      );
+      observer.observe(root);
+    } else {
+      void start();
+    }
+
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        handle?.destroy();
+        handle = null;
+      },
+      { once: true }
+    );
+  };
+
+  setup();
+  document.addEventListener('astro:page-load', setup);
+</script>

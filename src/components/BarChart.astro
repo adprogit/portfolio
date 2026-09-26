@@ -1,0 +1,91 @@
+---
+/**
+ * Barres horizontales, une seule série : on compare des grandeurs.
+ *
+ * Règles suivies : une seule teinte — l'accent du projet, qui ne code donc
+ * rien, ce sont les libellés qui le font —, chaque valeur écrite en clair,
+ * pas de légende, pas de quadrillage, et un tableau `sr-only` pour les
+ * lecteurs d'écran. Les libellés étant lus directement, aucun JS n'est
+ * nécessaire.
+ *
+ * La meilleure valeur est la seule à passer en encre forte. Rien n'est
+ * surligné, rien ne change de couleur : c'est la graisse qui la désigne, et
+ * elle reste lisible sans distinguer les teintes.
+ */
+import { toneVar, type ResolvedChart, type Tone } from '../data/projects';
+
+interface Props {
+  chart: ResolvedChart;
+  tone: Tone;
+}
+
+const { chart, tone } = Astro.props;
+
+const max = Math.max(...chart.bars.map((bar) => bar.value));
+const best =
+  chart.better === 'low'
+    ? Math.min(...chart.bars.map((bar) => bar.value))
+    : max;
+
+/* Les nombres sont écrits dans la langue de la page par le composant appelant ?
+   Non : un débit est un nombre technique, il s'écrit partout pareil, comme les
+   libellés de version qui l'accompagnent. */
+const format = (value: number) =>
+  value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+---
+
+<figure class="reveal border border-rule" style={`--bar: ${toneVar[tone]}`}>
+  <figcaption
+    class="flex items-baseline justify-between gap-3 border-b border-rule px-4 py-2.5 font-mono text-2xs tracking-[0.14em] text-ink-soft uppercase"
+  >
+    {chart.title}
+    <span class="tracking-normal normal-case">{chart.unit}</span>
+  </figcaption>
+
+  <div class="space-y-2.5 px-4 py-4">
+    {
+      chart.bars.map((bar) => (
+        <div>
+          <div class="mb-1 flex items-baseline justify-between gap-3">
+            <span class="font-mono text-xs text-ink-soft">{bar.label}</span>
+            <span
+              class:list={[
+                'font-mono text-xs tabular-nums',
+                bar.value === best ? 'font-semibold text-ink-strong' : 'text-ink-soft',
+              ]}
+            >
+              {format(bar.value)}
+            </span>
+          </div>
+
+          {/* La piste est un filet d'un pixel, pas une gouttière : la barre s'y
+              pose comme un trait tracé sur une règle. */}
+          <div class="h-1 bg-rule" aria-hidden="true">
+            <div
+              class="h-full"
+              style={`width:${Math.max((bar.value / max) * 100, 1.5)}%; background: var(--bar)`}
+            >
+            </div>
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  {chart.note && <p class="px-4 pb-4 text-xs leading-relaxed text-ink-soft">{chart.note}</p>}
+
+  {/* Même donnée, lisible par un lecteur d'écran. */}
+  <table class="sr-only">
+    <caption>{chart.title}</caption>
+    <tbody>
+      {
+        chart.bars.map((bar) => (
+          <tr>
+            <th scope="row">{bar.label}</th>
+            <td>{format(bar.value)} {chart.unit}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</figure>

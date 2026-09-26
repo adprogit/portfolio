@@ -1,0 +1,288 @@
+---
+/**
+ * Corps de la page d'accueil, partagé par les trois langues
+ * (src/pages/index.astro et src/pages/[lang]/index.astro).
+ *
+ * Deux panneaux, pas une page qu'on déroule. La bio fait exactement un écran
+ * et se termine sur une couture pleine largeur ; les projets sont l'écran
+ * suivant. Il n'y a pas d'état intermédiaire — voir `.hero` dans
+ * `global.css`, qui porte tout le mécanisme, sans une ligne de script.
+ *
+ * La bio est donc hors de la colonne de la page : sa couture doit aller d'un
+ * bord de l'écran à l'autre, et c'est le seul trait du site dans ce cas.
+ *
+ * Les projets restent une liste de lignes rangées sous leur famille — pas de
+ * vignettes, pas de cartes, pas de couleur de fond. La seule chose qui varie
+ * d'une ligne à l'autre est l'accent de son filet, et il ne se voit qu'au
+ * survol.
+ */
+import ProjectRow from './ProjectRow.astro';
+import ProjectFilter from './ProjectFilter.astro';
+import NoteRow from './NoteRow.astro';
+import { getNotes } from '../data/notes';
+import SectionHead from './SectionHead.astro';
+import Icon from './Icon.astro';
+import { links, profile } from '../data/profile';
+import { getProjects, getProjectGroups } from '../data/projects';
+import type { Locale } from '../i18n/config';
+import { useT, type UIKey } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useT(lang);
+const me = profile[lang];
+const projects = getProjects(lang);
+const groups = getProjectGroups(projects);
+const notes = getNotes(lang);
+
+// Période couverte par les projets, lue dans les données plutôt qu'écrite.
+const years = [...new Set(projects.map((project) => project.year))].sort();
+const span = years.length > 1 ? `${years[0]}–${years.at(-1)}` : years[0];
+---
+
+{/* ── Premier écran : la bio, et rien d'autre ──────────────────── */}
+<section class="hero" aria-labelledby="home-title">
+  <div class="shell flex flex-1 flex-col px-5 sm:px-8">
+    <div class="measure" data-reveal-group>
+      {/*
+        La seule ligne du site qui s'écrit. `--chars` donne au masque son nombre
+        de pas : il change avec la langue, donc il est calculé ici et pas en CSS.
+      */}
+      <p class="reveal font-mono text-xs tracking-[0.12em] text-brand uppercase">
+        <span class="typed glow" style={`--chars: ${me.seeking.length}`}>
+          <span>{me.seeking}</span>
+        </span>
+      </p>
+
+      {/*
+        Le titre est découpé en mots pour qu'ils se lèvent l'un après l'autre
+        (voir `.word`). Il n'a donc pas de classe `reveal` : son animation lui
+        appartient, et la superposer au fondu du groupe les ferait lutter.
+
+        L'espace est **hors** du `<span>`, et c'est indispensable : un
+        `inline-block` est son propre contexte de mise en forme, et une espace
+        collée à sa fin y est supprimée comme en fin de ligne. Mise dedans, elle
+        disparaîtrait — et le titre s'écrirait d'un seul tenant.
+
+        La fin de la ligne change de main : didone italique, dans l'accent. Elle
+        est découpée en mots elle aussi, et sa numérotation continue celle de la
+        base — la ligne se lève d'un seul mouvement, pas en deux temps.
+      */}
+      <h1
+        id="home-title"
+        class="mt-5 max-w-[20ch] text-display text-balance text-ink-strong"
+      >
+        {
+          me.headline.split(' ').map((word, i) => (
+            <Fragment><span class="word" style={`--i: ${i}`}>{word}</span>{' '}</Fragment>
+          ))
+        }
+        {
+          me.headlineAccent.split(' ').map((word, i) => (
+            <Fragment>
+              <span
+                class="word accent-word"
+                style={`--i: ${me.headline.split(' ').length + i}`}
+              >
+                {word}
+              </span>
+              {' '}
+            </Fragment>
+          ))
+        }
+      </h1>
+
+      <p class="reveal mt-7 max-w-[56ch] text-lg leading-relaxed text-pretty text-ink">
+        {me.description}
+      </p>
+
+      {/* Le second paragraphe dit comment, pas quoi. Il est en encre
+          secondaire : on doit pouvoir s'arrêter au premier. */}
+      <p class="reveal mt-4 max-w-[56ch] leading-relaxed text-pretty text-ink-soft">
+        {me.approach}
+      </p>
+
+      <p class="reveal mt-8 font-mono text-xs text-ink-soft">{me.location}</p>
+
+      {/* Pas de bouton « voir les projets » : le bandeau y mène déjà, et
+          l'invite de défilement juste en dessous aussi. Il ne reste que ce que
+          ces deux-là ne disent pas — combien, et sur quelle période. */}
+      <p class="reveal mt-3 font-mono text-xs tabular-nums text-ink-soft">
+        {t('home.count', { n: projects.length })} · {span}
+      </p>
+
+      {/* Le seul endroit d'où l'on peut répondre. Un site qui annonce chercher
+          un stage doit donner par où. */}
+      <ul class="reveal mt-7 flex flex-wrap gap-x-5 gap-y-2">
+        {
+          links.map((link) => (
+            <li>
+              <a
+                class="link inline-flex items-center gap-2 font-mono text-sm"
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Icon name={link.icon} class="h-4 w-4" />
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {/*
+      L'invite de défilement. C'est un lien, pas un décor : au clavier comme au
+      clic, elle mène là où le geste mènerait. `mt-auto` la pousse en bas, donc
+      c'est elle qui remplit l'écran sous la bio.
+    */}
+    <a
+      href="#projects"
+      class="measure mt-auto flex items-center gap-3 pt-10 font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase transition-colors hover:text-ink-strong"
+    >
+      <span class="hero-cue-track" aria-hidden="true"></span>
+      {t('home.scroll')}
+    </a>
+  </div>
+</section>
+
+{/* La couture entre les deux écrans — pleine largeur, hors de toute colonne. */}
+<div class="seam" aria-hidden="true"></div>
+
+{/* ── Second écran : les projets, puis les compétences ─────────── */}
+<div class="shell px-5 pb-24 sm:px-8 sm:pb-32">
+  {/* ── Notes ──────────────────────────────────────────────────── */}
+  {/*
+    Le cours d'abord, les projets ensuite : on arrive par ce qui explique, et
+    on descend vers ce qui a été construit avec.
+
+    Ce qui explique plutôt que ce qui montre. Les projets disent ce qui a été
+    construit ; une note dit comment ça marche, avec le code du projet dont
+    elle sort. Même geste de ligne que les projets, mais une autre grille :
+    catégorie, titre, temps de lecture — la table des matières d'un carnet.
+  */}
+  {
+    notes.length > 0 && (
+      /* `panel` : c'est ici que le cran de défilement s'arrête, donc c'est la
+         couture de la bio qu'on voit arriver en haut de l'écran. */
+      <section
+        class="panel pt-14 sm:pt-20"
+        id="notes"
+        data-reveal-group
+        aria-labelledby="notes-title"
+      >
+        <SectionHead id="notes-title" kicker={t('home.notes.kicker')} title={t('home.notes')} />
+        <div class="mt-3">
+          {notes.map((note) => (
+            <div class="reveal">
+              <NoteRow note={note} lang={lang} />
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  {/* ── Projets ────────────────────────────────────────────────── */}
+    <section class="mt-20 scroll-mt-24 sm:mt-28" id="projects" data-reveal-group aria-labelledby="projects-title">
+    <SectionHead
+      id="projects-title"
+      kicker={t('home.projects.kicker')}
+      title={t('home.projects')}
+    />
+
+    <ProjectFilter projects={projects} lang={lang} />
+
+    {/*
+      `data-project-list` est la prise du filtre : il y cherche les lignes
+      (`data-tags`), les familles (`data-family`) et le message de liste vide,
+      et se contente de poser `hidden` dessus.
+    */}
+    {/*
+      La liste est son propre groupe d'apparition : ses lignes doivent entrer
+      quand *elle* arrive, pas quand la section arrive — la tête de section et
+      le filtre, eux, sont déjà passés depuis longtemps. `data-reveal-rows` lui
+      donne l'entrée par la gauche (voir `BaseLayout.astro`).
+    */}
+    <div
+      class="mt-8 grid gap-10"
+      data-project-list
+      data-reveal-group
+      data-reveal-rows
+    >
+      {
+        groups.map((group) => (
+          <div data-family>
+            {/* Le filet reprend celui de la tête de section, et le compte à
+                droite dit le poids de la famille : le titre porte alors une
+                information, pas seulement une étiquette. */}
+            <h3 class="reveal flex items-center gap-3 font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase">
+              <span>{t(`cat.${group.category}` as UIKey)}</span>
+              <span class="h-px flex-1 bg-rule" aria-hidden="true" />
+              <span class="tabular-nums normal-case">
+                {t('home.count', { n: group.projects.length })}
+              </span>
+            </h3>
+
+            <div class="mt-3">
+              {group.projects.map((project) => (
+                <div data-tags={project.tags.join(' ')}>
+                  <div class="reveal">
+                    <ProjectRow project={project} lang={lang} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+
+      {/* Ne devrait jamais se voir : le filtre ne propose que des tags portés.
+          Il est là pour le jour où un tag sera retiré d'un projet sans l'être
+          de la table. */}
+      <p class="font-mono text-sm text-ink-soft" data-filter-empty hidden>
+        {t('filter.empty')}
+      </p>
+    </div>
+  </section>
+
+  {/* ── Compétences, en annexe ─────────────────────────────────── */}
+  {/*
+    Une annexe, pas une section. Les compétences avaient la même tête numérotée
+    que les projets — même poids pour l'index que pour la substance. Or c'est
+    une liste qu'on parcourt, pas quelque chose qu'on lit : elle est donc
+    compacte, sans titre de rang, et en retrait derrière un simple filet.
+  */}
+  <section
+    class="mt-20 scroll-mt-24 border-t border-rule pt-6 sm:mt-28"
+    id="skills"
+    data-reveal-group
+    aria-labelledby="skills-title"
+  >
+    <h2
+      id="skills-title"
+      class="reveal font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase"
+    >
+      {t('home.skills')}
+    </h2>
+
+    <dl class="mt-4 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+      {
+        me.skills.map((group) => (
+          <div class="reveal">
+            <dt class="font-mono text-2xs tracking-[0.12em] text-ink-soft uppercase">
+              {group.title}
+            </dt>
+            <dd class="mt-1 font-mono text-xs leading-relaxed text-ink">
+              {group.items.join('  ·  ')}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </section>
+</div>

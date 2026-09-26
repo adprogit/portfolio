@@ -1,0 +1,359 @@
+---
+/**
+ * Une poussière lente, derrière toute la page.
+ *
+ * C'est la seule chose du site qui bouge sans qu'on la provoque. Trois
+ * mouvements s'y superposent, et aucun n'est assez rapide pour qu'on le suive
+ * du regard :
+ *
+ * 1. une **dérive** propre à chaque point, lente et sans direction commune ;
+ * 2. un **courant** — deux sinusoïdes lues à la position du point, ce qui donne
+ *    un champ de vitesses continu : les voisins tournent ensemble, les
+ *    lointains s'en vont ailleurs. C'est ce qui fait qu'on lit un fluide plutôt
+ *    qu'une pluie ;
+ * 3. une **parallaxe** au défilement, à la profondeur de chaque point.
+ *
+ * S'y ajoute le battement de luminosité, déphasé d'un point à l'autre, et
+ * — là où il y a un vrai curseur — un **écart** : la poussière s'ouvre devant
+ * lui et se rallume à son approche. C'est la seule chose du site qui réponde
+ * au simple fait de passer dessus, et c'est pour ça qu'elle y est : elle dit
+ * que la page est vivante avant qu'on ait cliqué quoi que ce soit.
+ *
+ * Une seule couleur, celle de l'accent du site, lue sur `documentElement` —
+ * six teintes mélangées derrière le texte faisaient un confetti, pas une
+ * ambiance. En sombre elle porte un halo, comme les titres ; en clair, aucun —
+ * sur du papier, un halo salit. Le changement de thème la prévient
+ * (`themechange`, émis par `ThemeToggle`).
+ *
+ * Elle réagit au défilement : chaque point a sa propre profondeur, et la page
+ * qui glisse les entraîne d'autant. Les plus gros suivent, les plus fins
+ * restent — c'est la parallaxe, et c'est ce qui donne au fond une épaisseur que
+ * la dérive seule ne donnait pas.
+ *
+ * C'est aussi le seul endroit du site avec du mélange de couleurs : un point
+ * de poussière opaque serait une tache. L'alpha vit dans le canvas, jamais
+ * dans la palette — le contrôle de contraste reste donc exact, et rien ne se
+ * lit par-dessus un point.
+ */
+---
+
+<canvas
+  data-particles
+  class="pointer-events-none fixed inset-0 -z-10 h-full w-full"
+  aria-hidden="true"></canvas>
+
+<script>
+  interface Mote {
+    x: number;
+    y: number;
+    /** Vitesse en pixels CSS par seconde. */
+    vx: number;
+    vy: number;
+    radius: number;
+    /**
+     * Part du défilement que ce point subit. Proportionnelle à sa taille : un
+     * gros point paraît proche et suit la page, un fin paraît loin et bouge à
+     * peine.
+     */
+    depth: number;
+    /** Opacité moyenne, et l'amplitude du battement autour d'elle. */
+    alpha: number;
+    swing: number;
+    /** Phase du battement, pour que les points ne clignotent pas ensemble. */
+    phase: number;
+    /** Pulsations par seconde. */
+    rate: number;
+    /** Sensibilité au courant : les points fins s'y laissent porter. */
+    drag: number;
+    /** De 0 à 1 : à quel point le curseur l'a réveillé. */
+    lit: number;
+  }
+
+  let stop: (() => void) | null = null;
+
+  const setup = () => {
+    stop?.();
+    stop = null;
+
+    const canvas = document.querySelector<HTMLCanvasElement>('[data-particles]');
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    let motes: Mote[] = [];
+    let width = 0;
+    let height = 0;
+    let dark = false;
+    let frame = 0;
+    let last = 0;
+    let lastScroll = 0;
+
+    /*
+     * Le curseur. Hors champ tant qu'il n'a pas bougé, et ignoré sur un écran
+     * tactile : un doigt n'a pas de position au repos, et la poussière
+     * s'écarterait d'un point où il ne se passe plus rien.
+     */
+    const fine = window.matchMedia('(pointer: fine)');
+    let pointerX = -1e4;
+    let pointerY = -1e4;
+
+    /** Rayon de l'écart, et la vitesse à laquelle il repousse, en px/s. */
+    const REACH = 130;
+    const PUSH = 110;
+
+    let color = '';
+
+    /** L'accent du site, tel que le thème courant le définit. */
+    const readColor = () =>
+      getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim();
+
+    /*
+     * La densité, pas le compte : une poussière fixée à soixante points serait
+     * dense sur un téléphone et vide sur un écran de 2 880 pixels. On en pose
+     * un par tranche de 19 000 pixels carrés, entre 32 et 150 — il en faut un
+     * minimum pour qu'un courant se lise : trois points qui tournent ensemble
+     * sont trois accidents, trente sont un mouvement.
+     */
+    const population = () =>
+      Math.round(Math.min(150, Math.max(32, (width * height) / 19000)));
+
+    /*
+     * Le courant. Deux sinusoïdes croisées, lues à la position du point et
+     * déroulées dans le temps : c'est le champ de vitesses le moins cher qui
+     * soit continu, et la continuité est tout ce qui compte ici. Les longueurs
+     * d'onde sont volontairement premières entre elles — sinon le motif se
+     * referme sur lui-même et on voit la grille.
+     */
+    const FLOW = 9;
+
+    const flowX = (x: number, y: number, time: number) =>
+      Math.sin(y / 190 + time * 0.09) * FLOW + Math.sin((x + y) / 310 - time * 0.05) * FLOW * 0.5;
+
+    const flowY = (x: number, y: number, time: number) =>
+      Math.cos(x / 230 - time * 0.07) * FLOW + Math.cos((x - y) / 270 + time * 0.04) * FLOW * 0.5;
+
+    const seed = () => {
+      color = readColor();
+      if (!color) return;
+
+      dark = document.documentElement.classList.contains('dark');
+      const count = population();
+
+      motes = Array.from({ length: count }, () => {
+        const radius = 0.35 + Math.random() * 0.75;
+        return {
+          x: Math.random() * width,
+          y: Math.random() * height,
+          // Une dérive lente et sans direction commune : rien ne défile.
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          radius,
+          // De 0,02 à 0,16 du défilement, selon la taille.
+          depth: 0.02 + (radius / 1.1) * 0.14,
+          // L'inverse pour le courant : un gros point a plus d'inertie.
+          drag: 1.15 - (radius / 1.1) * 0.75,
+          // Sur du papier, les mêmes points se verraient trop : on les efface.
+          alpha: dark ? 0.14 + Math.random() * 0.24 : 0.07 + Math.random() * 0.11,
+          swing: dark ? 0.1 : 0.04,
+          phase: Math.random() * Math.PI * 2,
+          rate: 0.05 + Math.random() * 0.12,
+          lit: 0,
+        };
+      });
+    };
+
+    const resize = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      // Tout le dessin se fait en pixels CSS ; l'échelle HiDPI vit ici.
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      seed();
+    };
+
+    const draw = (elapsed: number) => {
+      context.clearRect(0, 0, width, height);
+
+      for (const mote of motes) {
+        const beat = Math.sin(mote.phase + elapsed * mote.rate * Math.PI * 2);
+        const lit = mote.lit;
+
+        context.globalAlpha = Math.min(
+          0.85,
+          Math.max(0, mote.alpha + beat * mote.swing + lit * 0.5)
+        );
+        context.fillStyle = color;
+        // Le halo est la même lueur que celle des titres, et pour la même
+        // raison : sur fond sombre, un point clair s'étale de lui-même.
+        context.shadowBlur = dark ? mote.radius * (6 + lit * 10) : 0;
+        context.shadowColor = dark ? color : 'transparent';
+
+        context.beginPath();
+        // Réveillé, il grossit à peine — de quoi le distinguer, pas de quoi
+        // en faire une bulle.
+        context.arc(mote.x, mote.y, mote.radius * (1 + lit * 0.5), 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.globalAlpha = 1;
+      context.shadowBlur = 0;
+    };
+
+    const step = (now: number) => {
+      // Une seconde au plus : revenir sur un onglet endormi ne doit pas
+      // téléporter la poussière d'un bout à l'autre de l'écran.
+      const delta = Math.min((now - last) / 1000, 1);
+      last = now;
+
+      /*
+       * Le défilement depuis la dernière image. La page descend, la poussière
+       * remonte — à sa profondeur près.
+       */
+      const scrolled = window.scrollY - lastScroll;
+      lastScroll = window.scrollY;
+
+      const time = now / 1000;
+
+      for (const mote of motes) {
+        const fx = flowX(mote.x, mote.y, time) * mote.drag;
+        const fy = flowY(mote.x, mote.y, time) * mote.drag;
+
+        mote.x += (mote.vx + fx) * delta;
+        mote.y += (mote.vy + fy) * delta - scrolled * mote.depth;
+
+        /*
+         * L'écart devant le curseur. Il déplace la position, pas la vitesse :
+         * un point poussé revient de lui-même dès qu'on s'éloigne, porté par
+         * le courant, au lieu de garder son élan et de partir pour toujours.
+         * Le carré adoucit le bord du champ — sans lui, on verrait un cercle.
+         */
+        const dx = mote.x - pointerX;
+        const dy = mote.y - pointerY;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < REACH) {
+          const force = (1 - distance / REACH) ** 2;
+          const norm = distance || 1;
+          mote.x += (dx / norm) * force * PUSH * delta;
+          mote.y += (dy / norm) * force * PUSH * delta;
+          // Et elle s'allume en s'écartant : l'écart se voit, au lieu de se
+          // deviner à un trou dans le champ.
+          mote.lit = force;
+        } else if (mote.lit > 0) {
+          // Retour à l'ombre, en une demi-seconde environ.
+          mote.lit = Math.max(0, mote.lit - delta * 2);
+        }
+
+        // Les bords se rejoignent : un point qui sort rentre en face.
+        const margin = mote.radius * 6;
+        if (mote.x < -margin) mote.x = width + margin;
+        if (mote.x > width + margin) mote.x = -margin;
+        if (mote.y < -margin) mote.y = height + margin;
+        if (mote.y > height + margin) mote.y = -margin;
+      }
+
+      draw(now / 1000);
+      frame = requestAnimationFrame(step);
+    };
+
+    const halt = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
+
+    const run = () => {
+      if (frame) return;
+      last = performance.now();
+      // Reprendre après une pause ne doit pas rattraper tout le défilement
+      // qui a eu lieu entre-temps d'un seul coup.
+      lastScroll = window.scrollY;
+      frame = requestAnimationFrame(step);
+    };
+
+    /*
+     * En mouvement réduit, la poussière est posée une fois et ne bouge plus.
+     * Elle reste une ambiance ; elle cesse d'être un mouvement.
+     */
+    const restart = () => {
+      halt();
+      if (reduced.matches) {
+        draw(0);
+        return;
+      }
+      run();
+    };
+
+    const onResize = () => {
+      resize();
+      restart();
+    };
+
+    const onVisibility = () => {
+      if (document.hidden) halt();
+      else if (!reduced.matches) run();
+    };
+
+    const onPointer = (event: PointerEvent) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+    };
+
+    const onPointerLeave = () => {
+      pointerX = -1e4;
+      pointerY = -1e4;
+    };
+
+    const bindPointer = () => {
+      window.removeEventListener('pointermove', onPointer);
+      document.removeEventListener('pointerleave', onPointerLeave);
+      onPointerLeave();
+      if (!fine.matches || reduced.matches) return;
+      window.addEventListener('pointermove', onPointer, { passive: true });
+      document.addEventListener('pointerleave', onPointerLeave);
+    };
+
+    const onTheme = () => {
+      color = readColor();
+      dark = document.documentElement.classList.contains('dark');
+      // Les points gardent leur place : seules leur teinte, leur opacité et
+      // leur halo changent. Les resemer ferait sauter le fond au moindre
+      // basculement de thème.
+      for (const mote of motes) {
+        mote.alpha = dark ? 0.14 + Math.random() * 0.24 : 0.07 + Math.random() * 0.11;
+        mote.swing = dark ? 0.1 : 0.04;
+      }
+      if (reduced.matches) draw(0);
+    };
+
+    resize();
+    restart();
+    bindPointer();
+
+    window.addEventListener('resize', onResize);
+    fine.addEventListener('change', bindPointer);
+    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('themechange', onTheme);
+    reduced.addEventListener('change', restart);
+    reduced.addEventListener('change', bindPointer);
+
+    stop = () => {
+      halt();
+      window.removeEventListener('pointermove', onPointer);
+      document.removeEventListener('pointerleave', onPointerLeave);
+      fine.removeEventListener('change', bindPointer);
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('themechange', onTheme);
+      reduced.removeEventListener('change', restart);
+      reduced.removeEventListener('change', bindPointer);
+    };
+  };
+
+  setup();
+  // Les transitions de vue remplacent le <body> : le canvas d'avant n'existe
+  // plus, et ses écouteurs non plus tant qu'on ne les retire pas.
+  document.addEventListener('astro:page-load', setup);
+</script>

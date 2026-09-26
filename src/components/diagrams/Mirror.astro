@@ -1,0 +1,64 @@
+---
+/**
+ * Chapitre 09 — le miroir, par récursion. Chaque rebond relance la marche avec
+ * un budget de profondeur en moins ; à zéro, on s'arrête, même si le rayon
+ * pourrait encore rebondir. Les deux réflexions sont calculées avec la formule
+ * de `march` : r = d − 2(d·n)n.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import {
+  add,
+  arrowHead,
+  dot,
+  normalize,
+  raycastCircle,
+  scale,
+  sub,
+  type Vec,
+} from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const reflect = (d: Vec, n: Vec): Vec => sub(d, scale(n, 2 * dot(d, n)));
+
+const groundY = 204;
+const E: Vec = [60, 110];
+const P: Vec = [250, groundY];
+const d = normalize(sub(P, E));
+const nP: Vec = [0, -1];
+const r1 = reflect(d, nP);
+
+const ball = { c: [540, 80] as Vec, r: 40 };
+const { hits } = raycastCircle(P, r1, ball);
+if (!hits.length) throw new Error('Mirror : le premier rebond ne touche plus la sphère.');
+const Q = add(P, scale(normalize(r1), hits[0]));
+const nQ = normalize(sub(Q, ball.c));
+const r2 = reflect(normalize(r1), nQ);
+const R = add(Q, scale(r2, 96));
+
+const short = (from: Vec, dir: Vec, k: number) => add(from, scale(dir, k));
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.mirror.alt')}>
+  <line class="d-line" x1="80" y1={groundY} x2="420" y2={groundY} />
+  <circle class="d-shape" cx={ball.c[0]} cy={ball.c[1]} r={ball.r} />
+
+  <line class="d-ray" x1={E[0]} y1={E[1]} x2={P[0]} y2={P[1]} />
+  <line class="d-ray" x1={P[0]} y1={P[1]} x2={Q[0]} y2={Q[1]} />
+  <line class="d-rule" x1={Q[0]} y1={Q[1]} x2={R[0]} y2={R[1]} />
+  <polygon class="d-head-accent" points={arrowHead(E, P)} />
+  <polygon class="d-head-accent" points={arrowHead(P, Q)} />
+
+  <line class="d-line" x1={P[0]} y1={P[1]} x2={short(P, nP, 48)[0]} y2={short(P, nP, 48)[1]} />
+  <line class="d-line" x1={Q[0]} y1={Q[1]} x2={short(Q, nQ, 40)[0]} y2={short(Q, nQ, 40)[1]} />
+  <circle class="d-dot-accent" cx={P[0]} cy={P[1]} r="3.5" />
+  <circle class="d-dot-accent" cx={Q[0]} cy={Q[1]} r="3.5" />
+
+  <text class="d-label" x={E[0]} y={E[1] - 10}>{t('diagram.eye')} · depth = 2</text>
+  <text class="d-label" x={P[0] + 6} y={P[1] - 52}>n</text>
+  <text class="d-label" x={(P[0] + Q[0]) / 2 + 8} y={(P[1] + Q[1]) / 2 + 18}>depth = 1</text>
+  <text class="d-label" x={R[0] + 6} y={R[1] + 4}>depth = 0 · {t('diagram.stop')}</text>
+  <text class="d-label-accent" x="80" y="244">r = d − 2 (d · n) n</text>
+</svg>

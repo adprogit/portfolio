@@ -1,0 +1,194 @@
+---
+/**
+ * Corps d'une note, partagé par les trois langues.
+ *
+ * Même charpente qu'une page projet — jauge d'avancement, sommaire, sections,
+ * retour — parce qu'on la lit de la même façon : de haut en bas, en sautant
+ * aux chapitres. Ce qui change est dans l'en-tête : un surtitre au lieu d'une
+ * pile technique, le titre coupé en deux voix, et le temps de lecture.
+ *
+ * Ses figures sont de deux sortes — des schémas SVG calculés, des images de
+ * rapport — mais une seule numérotation, dans l'ordre de lecture. Seules les
+ * images vont au lightbox : un schéma est déjà net à toute taille, une courbe
+ * Matplotlib de 3 600 pixels, elle, se lit mieux agrandie.
+ */
+import { getImage } from 'astro:assets';
+import Icon from './Icon.astro';
+import Lightbox from './Lightbox.astro';
+import SectionBlocks from './SectionBlocks.astro';
+import { toneText, toneVar, getProjects, type ResolvedShot } from '../data/projects';
+import type { ResolvedNote } from '../data/notes';
+import { localeRoot, projectPath, type Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  note: ResolvedNote;
+  lang: Locale;
+}
+
+const { note, lang } = Astro.props;
+const t = useT(lang);
+
+/*
+ * Une seule numérotation pour les images et les schémas, dans l'ordre où on les
+ * rencontre en lisant. Les deux tables partagent le même compteur ; le lightbox
+ * ne reçoit que les images, mais chacune garde le numéro de sa figure.
+ */
+const shots: ResolvedShot[] = [];
+const shotIndex = new Map<string, number>();
+const diagramIndex = new Map<string, number>();
+let figure = 0;
+
+for (const section of note.sections) {
+  for (const block of section.blocks) {
+    if (block.type === 'diagram' && !diagramIndex.has(block.diagram)) {
+      diagramIndex.set(block.diagram, figure++);
+    }
+    if (block.type === 'media' && !shotIndex.has(block.shot.image.src)) {
+      shotIndex.set(block.shot.image.src, figure++);
+      shots.push(block.shot);
+    }
+  }
+}
+
+/*
+ * Le lightbox indexe ses images de 0 à n−1, sans trou : on lui passe donc la
+ * position de l'image dans `shots`, et la légende affichée garde le numéro de
+ * figure. Les deux ne coïncident que sur une page sans schéma.
+ */
+const lightboxIndex = new Map(shots.map((shot, i) => [shot.image.src, i]));
+
+const lightboxShots = await Promise.all(
+  shots.map(async (shot) => {
+    const width = Math.min(shot.image.width, 1800);
+    const height = Math.round((shot.image.height / shot.image.width) * width);
+    const large = shot.animated
+      ? shot.image
+      : await getImage({ src: shot.image, width, format: 'webp', quality: 84 });
+    return {
+      src: large.src,
+      alt: shot.alt,
+      caption: shot.caption,
+      width: shot.animated ? shot.image.width : width,
+      height: shot.animated ? shot.image.height : height,
+      title: `${note.title} ${note.titleAccent}`,
+    };
+  })
+);
+
+/** Même échappement que sur les pages projet : rien ne doit fermer la balise. */
+const lightboxJson = JSON.stringify(lightboxShots)
+  .replace(/</g, '\\u003c')
+  .replace(/\u2028/g, '\\u2028')
+  .replace(/\u2029/g, '\\u2029');
+
+const project = note.project
+  ? getProjects(lang).find((candidate) => candidate.slug === note.project)
+  : undefined;
+---
+
+<div class="progress" style={`--progress-accent: ${toneVar[note.tone]}`} aria-hidden="true"></div>
+<div class="h-0.5 w-full" style={`background: ${toneVar[note.tone]}`} aria-hidden="true"></div>
+
+<article
+  class="shell px-5 pt-12 pb-24 sm:px-8 sm:pt-16 sm:pb-32"
+  style={`--diagram-accent: ${toneVar[note.tone]}`}
+>
+  <header class="measure" data-reveal-group>
+    <p class="reveal font-mono text-2xs tracking-[0.14em] text-ink-soft">
+      <span class="select-none" aria-hidden="true">{'// '}</span>{note.kicker}
+    </p>
+
+    <h1 class="reveal mt-3 text-lead text-balance text-ink-strong" data-reveal-blur>
+      {note.title}{' '}
+      <span class="accent-word" style={`--accent-word: ${toneVar[note.tone]}`}>
+        {note.titleAccent}
+      </span>
+    </h1>
+
+    <p class="reveal mt-5 max-w-[52ch] leading-relaxed text-pretty text-ink">
+      {note.description}
+    </p>
+
+    <p class="reveal mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-xs text-ink-soft">
+      {
+        note.draft ? (
+          <span class="rounded border border-dashed border-line px-2 py-0.5 tracking-[0.14em] uppercase">
+            {t('note.draft')}
+          </span>
+        ) : (
+          <span class="tabular-nums">{t('note.minutes', { n: note.minutes })}</span>
+        )
+      }
+      {
+        project && (
+          <a class="link inline-flex items-center gap-2" href={projectPath(lang, project.slug)}>
+            {project.title}
+            <Icon name="arrow-right" class="h-3.5 w-3.5" />
+          </a>
+        )
+      }
+    </p>
+  </header>
+
+  <nav
+    class="measure reveal mt-12 border-t border-rule pt-5"
+    data-reveal-group
+    aria-labelledby="contents-title"
+  >
+    <p id="contents-title" class="font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase">
+      {t('project.contents')}
+    </p>
+    <ol class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+      {
+        note.sections.map((section) => (
+          <li>
+            <a href={`#${section.id}`} class="group flex items-baseline gap-3 font-mono text-sm">
+              <span class:list={['shrink-0 tabular-nums', toneText[note.tone]]}>
+                {section.kicker}
+              </span>
+              <span class="text-ink-soft transition-colors group-hover:text-ink-strong">
+                {section.title}
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </nav>
+
+  {
+    note.sections.map((section) => (
+      <SectionBlocks
+        section={section}
+        lang={lang}
+        group={note.slug}
+        shotIndex={shotIndex}
+        lightboxIndex={lightboxIndex}
+        tone={note.tone}
+        diagramIndex={diagramIndex}
+      />
+    ))
+  }
+
+  <div class="measure mt-16 border-t border-rule pt-6" data-reveal-group>
+    <a href={localeRoot(lang)} class="link group inline-flex items-center gap-2 font-mono text-sm">
+      <Icon name="arrow-left" class="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
+      {t('nav.back')}
+    </a>
+  </div>
+</article>
+
+{
+  shots.length > 0 && (
+    <>
+      <script
+        is:inline
+        type="application/json"
+        data-lightbox-group={note.slug}
+        set:html={lightboxJson}
+      />
+      <Lightbox lang={lang} />
+    </>
+  )
+}

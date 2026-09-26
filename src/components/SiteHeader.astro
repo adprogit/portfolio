@@ -1,0 +1,78 @@
+---
+import Icon from './Icon.astro';
+import ThemeToggle from './ThemeToggle.astro';
+import LangSwitch from './LangSwitch.astro';
+import { monogram } from '../data/profile';
+import { localeRoot, type Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+  back?: boolean;
+}
+
+const { lang, back = false } = Astro.props;
+const t = useT(lang);
+const home = localeRoot(lang);
+
+/*
+ * Les ancres ne sont proposées que sur l'accueil : ailleurs, les sections
+ * qu'elles visent n'existent pas. Sur une page projet, le bandeau porte à la
+ * place un retour à l'accueil.
+ */
+const anchors = [
+  { href: '#notes', label: t('home.notes') },
+  { href: '#projects', label: t('home.projects') },
+  { href: '#skills', label: t('home.skills') },
+];
+---
+
+{/* Fond plein et filet d'un pixel : le bandeau se pose sur la page sans la
+    voiler. Rien n'y est translucide, donc rien ne bave sur ce qui passe
+    dessous. */}
+<header class="sticky top-0 z-40 border-b border-rule bg-paper">
+  <div class="shell flex h-14 items-center gap-5 px-5 sm:px-8">
+    {
+      back ? (
+        <a href={home} class="link group inline-flex items-center gap-2 font-mono text-sm">
+          <Icon
+            name="arrow-left"
+            class="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
+          />
+          {t('nav.back')}
+        </a>
+      ) : (
+        /* Le monogramme seul : le métier est déjà écrit juste dessous, et
+           repris dans le pied de page. */
+        <a
+          href={home}
+          class="glow font-mono text-sm font-semibold text-brand transition-colors hover:text-brand-strong"
+        >
+          {monogram}
+        </a>
+      )
+    }
+
+    {
+      !back && (
+        <nav class="ml-auto hidden items-center gap-5 sm:flex">
+          {anchors.map((anchor) => (
+            <a
+              href={anchor.href}
+              class="font-mono text-xs text-ink-soft transition-colors hover:text-ink-strong"
+            >
+              {anchor.label}
+            </a>
+          ))}
+        </nav>
+      )
+    }
+
+    {/* `ml-auto` colle les commandes à droite ; dès que la nav apparaît c'est
+        elle qui pousse, les commandes n'ont plus qu'à s'en écarter. */}
+    <div class:list={['ml-auto flex items-center gap-1.5', !back && 'sm:ml-5']}>
+      <LangSwitch lang={lang} />
+      <ThemeToggle lang={lang} />
+    </div>
+  </div>
+</header>

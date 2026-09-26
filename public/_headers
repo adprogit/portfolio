@@ -1,0 +1,25 @@
+# En-têtes HTTP, format Cloudflare Pages et Netlify (le fichier est copié tel
+# quel dans `dist/`). Les hôtes qui l'ignorent — GitHub Pages, par exemple —
+# retombent sur les `<meta>` équivalents posés dans `BaseLayout.astro` : la
+# protection est moindre mais le site reste correct.
+
+/*
+  X-Robots-Tag: noindex, nofollow, noarchive
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; media-src 'self'; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; worker-src 'none'; frame-ancestors 'none'
+
+# Les fichiers de `_astro/` portent une empreinte dans leur nom : leur contenu
+# ne change jamais sous la même URL, ils peuvent donc être gardés un an.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Le HTML, lui, doit être revalidé : c'est ce qui fait qu'une republication est
+# vue tout de suite, y compris quand on change l'adresse du site.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate

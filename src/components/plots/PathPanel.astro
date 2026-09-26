@@ -1,0 +1,107 @@
+---
+/**
+ * Des trajectoires d'optimiseurs sur les lignes de niveau de la fonction.
+ *
+ * Les lignes de niveau sont calculées ici (carrés marchants) ; les chemins
+ * sont les itérés réellement produits par `src/lib/optim.ts`.
+ *
+ * Avec `loop`, les pas apparaissent l'un après l'autre à cadence fixe, puis
+ * le chemin s'efface et tout recommence — comme un GIF, mais en vectoriel et
+ * dans les couleurs du thème. Un chemin de 80 itérations met deux fois plus
+ * longtemps à se tracer qu'un chemin de 40 : c'est cette durée, plus que la
+ * forme, qui dit l'écart entre deux méthodes. Deux panneaux qui reçoivent la
+ * même durée de cycle bouclent ensemble.
+ *
+ * L'animation est en SMIL (`<animate>`), pas en CSS : une boucle où chaque pas
+ * apparaît à son propre instant demande des instants clés propres à chaque
+ * élément, ce que des `@keyframes` partagés ne savent pas faire, et ce que
+ * `keyTimes` fait nativement. Aucun script. En mouvement réduit, la version
+ * animée est masquée et le chemin complet s'affiche, immobile (`global.css`).
+ */
+import Axes from './Axes.astro';
+import { MARGIN, PANEL, contours, points, scale } from '../../lib/plot';
+
+interface Path {
+  key: string;
+  points: [number, number][];
+}
+
+interface Props {
+  id: string;
+  title?: string;
+  alt: string;
+  x: [number, number];
+  y: [number, number];
+  f: (x: number, y: number) => number;
+  levels: number[];
+  paths: Path[];
+  optimum: [number, number];
+  /**
+   * Fait apparaître les pas en boucle : `step` secondes par itération, cycle
+   * de `cycle` secondes (le même pour des panneaux qui doivent aller ensemble).
+   */
+  loop?: { step: number; cycle: number };
+}
+
+const { id, title, alt, x, y, f, levels, paths, optimum, loop } = Astro.props;
+const sx = scale(x, [MARGIN.left, PANEL.width - MARGIN.right]);
+const sy = scale(y, [PANEL.height - MARGIN.bottom, MARGIN.top]);
+const lines = contours(f, x, y, levels, sx, sy);
+const map = (pts: [number, number][]) => pts.map(([a, b]) => [sx(a), sy(b)] as [number, number]);
+---
+
+<svg class="plot" viewBox={`0 0 ${PANEL.width} ${PANEL.height}`} role="img" aria-label={alt}>
+  <defs>
+    <clipPath id={`clip-${id}`}>
+      <rect
+        x={MARGIN.left}
+        y={MARGIN.top}
+        width={PANEL.width - MARGIN.left - MARGIN.right}
+        height={PANEL.height - MARGIN.top - MARGIN.bottom}
+      />
+    </clipPath>
+  </defs>
+
+  <Axes title={title} sx={sx} sy={sy} xLabel="x₁" yLabel="x₂" />
+
+  <g clip-path={`url(#clip-${id})`}>
+    {lines.map((d) => <path class="p-level" d={d} />)}
+
+    {paths.map((p) => {
+      const pts = map(p.points);
+      const still = (
+        <g class:list={[`s-${p.key}`, loop && 'loop-still']}>
+          <polyline class="p-line" points={points(pts)} />
+          {pts.map(([px, py]) => <circle class="p-dot" cx={px} cy={py} r="1.6" />)}
+        </g>
+      );
+      if (!loop) return still;
+      return (
+        <>
+          {still}
+          <g class={`loop-anim s-${p.key}`}>
+            {pts.slice(1).map(([px, py], i) => (
+              <g opacity="0">
+                <animate
+                  attributeName="opacity"
+                  values="0;1"
+                  keyTimes={`0;${(((i + 1) * loop.step) / loop.cycle).toFixed(4)}`}
+                  calcMode="discrete"
+                  dur={`${loop.cycle}s`}
+                  repeatCount="indefinite"
+                />
+                <line class="p-line" x1={pts[i][0]} y1={pts[i][1]} x2={px} y2={py} />
+                <circle class="p-dot" cx={px} cy={py} r="1.8" />
+              </g>
+            ))}
+          </g>
+        </>
+      );
+    })}
+
+    <path
+      class="p-star"
+      d={`M${sx(optimum[0])},${sy(optimum[1]) - 6}l1.8,4.2 4.4,0.4-3.4,2.9 1,4.4-3.8,-2.3-3.8,2.3 1,-4.4-3.4,-2.9 4.4,-0.4z`}
+    />
+  </g>
+</svg>

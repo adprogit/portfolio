@@ -1,0 +1,47 @@
+---
+/**
+ * Une note, en une ligne — comme dans une table des matières de carnet :
+ * la catégorie en capitales mono, le titre avec son mot d'accent, le temps de
+ * lecture au bout. Même geste de survol qu'une ligne de projet (`.row`).
+ */
+import Icon from './Icon.astro';
+import type { ResolvedNote } from '../data/notes';
+import { tagLabels, toneVar } from '../data/projects';
+import { notePath, type Locale } from '../i18n/config';
+import { useT, type UIKey } from '../i18n/ui';
+
+interface Props {
+  note: ResolvedNote;
+  lang: Locale;
+}
+
+const { note, lang } = Astro.props;
+const t = useT(lang);
+const category = tagLabels[note.category] ?? t(`tag.${note.category}` as UIKey);
+---
+
+<a
+  href={notePath(lang, note.slug)}
+  class="row group grid gap-x-8 gap-y-1 py-4 sm:grid-cols-[11rem_1fr_auto] sm:items-baseline"
+  style={`--row-accent: ${toneVar[note.tone]}`}
+>
+  <span
+    class="font-mono text-2xs tracking-[0.16em] uppercase"
+    style={`color: ${toneVar[note.tone]}`}
+  >
+    {category}
+  </span>
+
+  <span class="row-title text-lg text-balance text-ink-strong">
+    {note.title}{' '}
+    <span class="accent-word" style={`--accent-word: ${toneVar[note.tone]}`}>
+      {note.titleAccent}
+    </span>
+  </span>
+
+  <span class="row-year inline-flex items-center gap-1.5 font-mono text-xs tabular-nums text-ink-soft">
+    {/* Un brouillon n'a pas de temps de lecture qui veuille dire quelque chose. */}
+    {note.draft ? t('note.draft') : t('note.minutes', { n: note.minutes })}
+    <Icon name="arrow-right" class="h-3.5 w-3.5" />
+  </span>
+</a>

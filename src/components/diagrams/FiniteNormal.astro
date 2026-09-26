@@ -1,0 +1,53 @@
+---
+/**
+ * Chapitre 05 — une normale sans formule : deux sondes à ε de distance, et la
+ * différence de ce qu'elles lisent donne la pente du champ. ε est exagéré pour
+ * se voir ; le calcul, lui, est fait avec.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { add, arrowHead, circleSdf, normalize, scale, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const shape = { c: [270, 146] as Vec, r: 64 };
+const sdf = circleSdf(shape);
+const levels = [22, 44, 66];
+
+const angle = (-38 * Math.PI) / 180;
+const P: Vec = add(shape.c, [shape.r * Math.cos(angle), shape.r * Math.sin(angle)]);
+const eps = 28;
+const px: Vec = add(P, [eps, 0]);
+const py: Vec = add(P, [0, eps]);
+
+// Exactement `get_normal` : les écarts de distance, normalisés.
+const n = normalize([sdf(px) - sdf(P), sdf(py) - sdf(P)]);
+const tip = add(P, scale(n, 86));
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.finiteNormal.alt')}>
+  {levels.map((l) => (
+    <circle class="d-iso" cx={shape.c[0]} cy={shape.c[1]} r={shape.r + l} />
+  ))}
+  <circle class="d-shape" cx={shape.c[0]} cy={shape.c[1]} r={shape.r} />
+
+  <line class="d-line" x1={P[0]} y1={P[1]} x2={px[0]} y2={px[1]} />
+  <line class="d-line" x1={P[0]} y1={P[1]} x2={py[0]} y2={py[1]} />
+  <circle class="d-dot" cx={px[0]} cy={px[1]} r="3" />
+  <circle class="d-dot" cx={py[0]} cy={py[1]} r="3" />
+
+  <line class="d-ray" x1={P[0]} y1={P[1]} x2={tip[0]} y2={tip[1]} />
+  <polygon class="d-head-accent" points={arrowHead(P, tip)} />
+  <circle class="d-dot-accent" cx={P[0]} cy={P[1]} r="3.5" />
+
+  <text class="d-label" x={px[0] + 6} y={px[1] + 4}>ε</text>
+  <text class="d-label" x={py[0] - 14} y={py[1] + 12}>ε</text>
+  <text class="d-label-accent" x={tip[0] + 8} y={tip[1]}>n</text>
+  <text class="d-label" x={shape.c[0] - 18} y={shape.c[1] + 4}>d &lt; 0</text>
+  <text class="d-label" x={shape.c[0] + shape.r + 70} y={shape.c[1] + 60}>d = 66</text>
+
+  <text class="d-label" x="430" y="96">n ≈ normalize(</text>
+  <text class="d-label" x="446" y="118">d(p + εx) − d(p),</text>
+  <text class="d-label" x="446" y="140">d(p + εy) − d(p) )</text>
+</svg>

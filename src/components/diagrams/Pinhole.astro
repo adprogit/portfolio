@@ -1,0 +1,52 @@
+---
+/** Chapitre 01 — la caméra sténopé : un centre, un plan image, un rayon par pixel. */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { add, normalize, raycastCircle, scale, sub, toFrame, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const C: Vec = [70, 130];
+const planeX = 200;
+const pixels = 8;
+const top = 54;
+const bottom = 206;
+const cell = (bottom - top) / pixels;
+
+// Le centre de chaque pixel — le `+ 0.5` que `render` passe à `pixel_position`.
+const centers = Array.from({ length: pixels }, (_, j): Vec => [planeX, top + (j + 0.5) * cell]);
+
+const sphere = { c: [480, 104] as Vec, r: 48 };
+const chosen = 2;
+
+// Chaque rayon file jusqu'au bord du cadre, sauf celui qui touche la sphère.
+const rays = centers.map((px, j) => {
+  const dir = normalize(sub(px, C));
+  const { hits } = raycastCircle(C, dir, sphere);
+  const t0 = hits.find((h) => h > 0);
+  const end = j === chosen && t0 !== undefined ? add(C, scale(dir, t0)) : toFrame(C, dir, [640, 260]);
+  return { end, hit: j === chosen && t0 !== undefined };
+});
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.pinhole.alt')}>
+  <circle class="d-shape" cx={sphere.c[0]} cy={sphere.c[1]} r={sphere.r} />
+
+  {rays.map(({ end }, j) => (
+    <line class={j === chosen ? 'd-ray' : 'd-rule'} x1={C[0]} y1={C[1]} x2={end[0]} y2={end[1]} />
+  ))}
+
+  <line class="d-line" x1={planeX} y1={top} x2={planeX} y2={bottom} />
+  {Array.from({ length: pixels + 1 }, (_, j) => (
+    <line class="d-line" x1={planeX - 5} y1={top + j * cell} x2={planeX + 5} y2={top + j * cell} />
+  ))}
+
+  <circle class="d-dot-accent" cx={centers[chosen][0]} cy={centers[chosen][1]} r="3.5" />
+  <circle class="d-dot-accent" cx={rays[chosen].end[0]} cy={rays[chosen].end[1]} r="4" />
+  <circle class="d-dot" cx={C[0]} cy={C[1]} r="4" />
+
+  <text class="d-label" x={C[0]} y={C[1] + 26} text-anchor="middle">{t('diagram.camera')}</text>
+  <text class="d-label" x={planeX} y={bottom + 24} text-anchor="middle">{t('diagram.imagePlane')}</text>
+  <text class="d-label-accent" x={planeX + 12} y={centers[chosen][1] - 8}>(i, j)</text>
+</svg>

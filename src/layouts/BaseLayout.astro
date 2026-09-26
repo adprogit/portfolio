@@ -1,0 +1,324 @@
+---
+import '../styles/global.css';
+import type { ImageMetadata } from 'astro';
+import { getImage } from 'astro:assets';
+import { ClientRouter } from 'astro:transitions';
+import SiteHeader from '../components/SiteHeader.astro';
+import Footer from '../components/Footer.astro';
+import Particles from '../components/Particles.astro';
+import { profile, regions } from '../data/profile';
+import { getProjects } from '../data/projects';
+import { base, locales, defaultLocale, translatePath, type Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+  title?: string;
+  description?: string;
+  /** Image de partage. Par défaut, la couverture du projet phare. */
+  image?: ImageMetadata;
+  /** Sur les pages projet, le bandeau affiche un retour à l'accueil. */
+  back?: boolean;
+  /**
+   * L'accueil seulement. Il pose `snap` sur `<html>`, ce qui arme le cran de
+   * défilement entre ses deux panneaux (voir `.hero` dans `global.css`). Le
+   * conteneur de défilement d'une page *est* `<html>` : le réglage ne peut pas
+   * vivre plus bas, d'où ce passage par la mise en page.
+   */
+  home?: boolean;
+}
+
+const { lang, image, back = false, home = false } = Astro.props;
+
+const me = profile[lang];
+const t = useT(lang);
+
+/*
+ * Sans nom à porter, le titre de l'accueil est le poste et les pays visés :
+ * c'est ce qu'on lit dans un onglet, un favori ou un résultat de recherche, et
+ * c'est ce qu'un recruteur cherche. En codes, pas en toutes lettres — les
+ * quatre pays écrits en entier dépasseraient la longueur affichée. Pas de
+ * `role` en plus : il redirait le titre. Le point médian sépare partout, ici
+ * comme sur les pages projet ; les textes se réservent le tiret cadratin.
+ */
+const title = Astro.props.title ?? `${me.headline} · ${regions}`;
+const description = Astro.props.description ?? me.description;
+
+/*
+ * Toutes les URL de la page sont relatives : le site ne connaît pas son propre
+ * domaine, ne le publie pas, et fonctionne à l'identique quel que soit l'hôte
+ * (y compris dans un sous-dossier). `canonical` et `hreflang` acceptent des
+ * chemins relatifs, résolus par le navigateur.
+ */
+const alternates = locales.map((locale) => ({
+  locale,
+  href: translatePath(Astro.url.pathname, locale),
+}));
+
+const ogSource = image ?? getProjects(lang)[0].cover.image;
+const ogImage = await getImage({ src: ogSource, width: 1200, format: 'webp', quality: 80 });
+
+/*
+ * Attention : rien ne doit s'intercaler entre `<!doctype html>` et `<html>`,
+ * pas même un commentaire de template. Le compilateur Astro cesse alors de
+ * traiter le fichier comme un document complet et n'émet plus ni <html> ni
+ * <body> — donc plus d'attribut `lang` ni de classe `dark`.
+ *
+ * Cette classe `dark` posée dès le HTML est ce qui garde le site en thème
+ * sombre sans JS ; le script du <head> ne fait que respecter un choix explicite.
+ */
+
+/**
+ * Tout est auto-hébergé : rien à charger ailleurs, et la politique le dit.
+ * `'unsafe-inline'` reste nécessaire pour le script de thème du <head> (posé
+ * avant le premier rendu) et pour les styles inline d'Astro.
+ * Seulement en production : le serveur de dev a besoin de son websocket.
+ */
+const csp = [
+  "default-src 'self'",
+  "img-src 'self' data:",
+  "media-src 'self'",
+  "font-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self'",
+  "form-action 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "frame-src 'none'",
+  "worker-src 'none'",
+].join('; ');
+---
+
+<!doctype html>
+<html lang={lang} class:list={['dark', home && 'snap']}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    {import.meta.env.PROD && <meta http-equiv="content-security-policy" content={csp} />}
+    <meta name="referrer" content="no-referrer" />
+    {/*
+      Le site se lit depuis un lien de CV, pas depuis une recherche : il refuse
+      d'être indexé. L'en-tête `X-Robots-Tag` de `public/_headers` dit la même
+      chose et pèse plus lourd, mais tous les hôtes ne le lisent pas — cette
+      balise, elle, part avec la page.
+    */}
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={Astro.url.pathname} />
+    <meta name="generator" content={Astro.generator} />
+
+    {
+      alternates.map(({ locale, href }) => (
+        <link rel="alternate" hreflang={locale} href={href} />
+      ))
+    }
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={alternates.find((alt) => alt.locale === defaultLocale)!.href}
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content={lang} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage.src} />
+
+    <ClientRouter />
+
+    {/*
+      Applique le thème avant le premier rendu (pas de flash) et signale que JS
+      tourne : sans cette classe `js`, les blocs `.reveal` restent visibles.
+      Le thème sombre est le défaut ; seul un choix explicite bascule en clair.
+    */}
+    <script is:inline>
+      (() => {
+        const apply = () => {
+          const root = document.documentElement;
+          root.classList.add('js');
+          const theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+          root.classList.toggle('dark', theme === 'dark');
+          root.style.colorScheme = theme;
+        };
+        apply();
+        // Les transitions de vue remplacent <html> : on repose le thème après.
+        document.addEventListener('astro:after-swap', apply);
+      })();
+    </script>
+  </head>
+
+  <body class="bg-paper font-sans text-ink antialiased">
+    <Particles />
+
+    <a
+      href="#contenu"
+      class="sr-only rounded bg-ink-strong px-4 py-2 font-mono text-sm text-paper focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50"
+    >
+      {t('a11y.skip')}
+    </a>
+
+    <SiteHeader lang={lang} back={back} />
+
+    <main id="contenu">
+      <slot />
+    </main>
+
+    <Footer lang={lang} />
+
+    <script>
+      /*
+       * Apparition au scroll, sans aucune dépendance.
+       *
+       * Il y avait ici `motion` — `inView`, `animate`, `stagger` — soit quatre
+       * paquets transitifs et 10 Ko livrés pour trois fonctions. Les trois sont
+       * natives : `IntersectionObserver` fait le `inView`, `Element.animate()`
+       * fait le `animate` (c'est d'ailleurs ce que `motion/mini` appelait en
+       * dessous : les Web Animations du navigateur), et un décalage en file est
+       * une multiplication.
+       *
+       * Le site n'a donc plus une seule dépendance JavaScript à l'exécution.
+       */
+
+      /*
+       * Une seule courbe, et une montée courte. Le ressort d'avant appartenait
+       * aux blocs qui glissaient vers leur ombre portée ; il n'y a plus ni
+       * blocs ni ombres, et un dépassement sur du texte se remarquerait pour
+       * lui-même. Le contenu monte de huit pixels et s'arrête net.
+       */
+      const EASE_OUT = 'cubic-bezier(0.16, 1, 0.3, 1)';
+
+      /*
+       * La liste des projets fait exception. Elle arrive après que la bio s'est
+       * effacée, donc elle arrive *à la place de quelque chose* : une montée de
+       * huit pixels passerait inaperçue là où on attend un changement de décor.
+       * Ses lignes entrent par la gauche, en file, du côté où leur filet
+       * d'accent est posé — le mouvement va dans le sens de la marque qu'il
+       * découvre.
+       *
+       * Les titres, eux, arrivent avec un flou qui se résorbe. C'est le seul
+       * endroit du site où `filter` est animé : il coûte un repaint par image
+       * sur la surface floutée, ce qui est tenable sur un titre court joué une
+       * fois, et ne le serait pas sur une liste entière.
+       */
+      const ROWS = { shift: 26, duration: 620, gap: 75 };
+      const BASE = { lift: 8, duration: 500, gap: 50 };
+      const BLUR = 6;
+
+      /** Un bloc entre en scène. Tout est en `transform`, `opacity`, `filter`. */
+      const play = (el: HTMLElement, delay: number, rows: boolean) => {
+        const title = el.dataset.revealBlur !== undefined;
+
+        const from = rows
+          ? `translateX(-${ROWS.shift}px)`
+          : `translateY(${BASE.lift}px)`;
+
+        el.animate(
+          [
+            { opacity: 0, transform: from, filter: title ? `blur(${BLUR}px)` : 'none' },
+            { opacity: 1, transform: 'none', filter: 'none' },
+          ],
+          {
+            duration: rows ? ROWS.duration : BASE.duration,
+            delay,
+            easing: EASE_OUT,
+            // `both` : l'état de départ s'applique avant le délai, sinon chaque
+            // bloc clignote en pleine opacité en attendant son tour.
+            fill: 'both',
+          }
+        );
+
+        el.classList.add('is-visible');
+      };
+
+      const reveal = () => {
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (reduced) {
+          document
+            .querySelectorAll<HTMLElement>('.reveal')
+            .forEach((el) => el.classList.add('is-visible'));
+          return;
+        }
+
+        document.querySelectorAll<HTMLElement>('[data-reveal-group]').forEach((group) => {
+          /*
+           * `reveal()` tourne au chargement du module *et* sur
+           * `astro:page-load`, qui se déclenche aussi à la première visite :
+           * sans ce drapeau, chaque groupe recevrait deux observateurs et
+           * jouerait son apparition deux fois.
+           */
+          if (group.dataset.revealBound) return;
+          group.dataset.revealBound = '1';
+
+          /*
+           * Un groupe ne prend que les blocs qui lui reviennent : ceux dont il
+           * est le groupe le plus proche. Sans ce filtre, un groupe imbriqué
+           * (une ligne de projet dans la section des projets) verrait ses blocs
+           * animés deux fois — une fois par lui, une fois par la section, et
+           * c'est la section qui gagnerait, bien trop tôt.
+           */
+          const items = [...group.querySelectorAll<HTMLElement>('.reveal')].filter(
+            (el) => el.closest('[data-reveal-group]') === group
+          );
+          if (!items.length) return;
+
+          const rows = group.hasAttribute('data-reveal-rows');
+          const gap = rows ? ROWS.gap : BASE.gap;
+
+          /*
+           * La liste des projets se déclenche plus tôt que le reste : elle est
+           * haute, et attendre 15 % d'elle-même reviendrait à ne la voir
+           * démarrer qu'une fois déjà lue.
+           *
+           * `rootMargin` négatif en bas = l'équivalent du `margin` de `inView` :
+           * le bloc doit être franchement entré, pas seulement effleuré.
+           */
+          const observer = new IntersectionObserver(
+            (entries) => {
+              for (const entry of entries) {
+                if (!entry.isIntersecting) continue;
+                observer.disconnect();
+                items.forEach((el, i) => play(el, i * gap, rows));
+              }
+            },
+            {
+              threshold: rows ? 0.02 : 0.15,
+              rootMargin: rows ? '0px 0px -4% 0px' : '0px 0px -6% 0px',
+            }
+          );
+
+          observer.observe(group);
+        });
+
+        // Filet de sécurité : un `.reveal` oublié hors d'un groupe reste visible.
+        document.querySelectorAll<HTMLElement>('.reveal').forEach((el) => {
+          if (!el.closest('[data-reveal-group]')) el.classList.add('is-visible');
+        });
+
+        /*
+         * Second filet, celui-là contre nous-mêmes. C'est la feuille de style
+         * qui cache les blocs (`.js .reveal`), et elle le fait dès le premier
+         * rendu : si ce script arrive en retard, échoue, ou si
+         * `IntersectionObserver` ne rappelle jamais, la page reste blanche.
+         * Passé une seconde, tout ce qui est à l'écran et toujours caché est
+         * donc montré d'office. Ce qui est plus bas garde son animation : le
+         * visiteur ne l'a pas encore atteint.
+         */
+        window.setTimeout(() => {
+          document.querySelectorAll<HTMLElement>('.reveal:not(.is-visible)').forEach((el) => {
+            if (el.getBoundingClientRect().top < window.innerHeight) {
+              el.classList.add('is-visible');
+            }
+          });
+        }, 1000);
+      };
+
+      reveal();
+      document.addEventListener('astro:page-load', reveal);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+---
+/** Distance au minimum eₖ, et rapport rₖ = eₖ₊₁ / eₖ, sur Rosenbrock. */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import { benchRate } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const R = benchRate();
+const keys = ['fr', 'pr', 'bfgs'] as const;
+const eSeries = keys.map((k) => ({
+  key: k,
+  points: R[k].e.map((e, i) => [i, e] as [number, number]).filter(([, e]) => e > 0),
+}));
+const rSeries = keys.map((k) => ({
+  key: k,
+  points: R[k].ratio.map((r, i) => [i + 1, r] as [number, number]).filter(([, r]) => r > 0),
+}));
+const kMax = Math.max(...keys.map((k) => R[k].e.length));
+const eMin = Math.min(...eSeries.flatMap((s) => s.points.map(([, e]) => e)));
+const rMin = Math.min(...rSeries.flatMap((s) => s.points.map(([, r]) => r)));
+---
+
+<Legend
+  entries={[
+    { key: 'fr', label: 'CG-FR' },
+    { key: 'pr', label: 'CG-PR+' },
+    { key: 'bfgs', label: 'BFGS' },
+  ]}
+/>
+<div class="plot-grid" data-panels="2">
+  <LinePanel
+    id="rate-e"
+    title="eₖ = ‖xₖ − x*‖"
+    alt={t('diagram.benchRate.alt')}
+    x={{ domain: [0, Math.ceil(kMax / 10) * 10], label: t('plot.k') }}
+    y={{ domain: [Math.max(eMin, 1e-14) / 3, 10], log: true, label: 'eₖ' }}
+    series={eSeries}
+  />
+  <LinePanel
+    id="rate-r"
+    title="rₖ = eₖ₊₁ / eₖ"
+    alt={t('diagram.benchRate.alt')}
+    x={{ domain: [0, Math.ceil(kMax / 10) * 10], label: t('plot.k') }}
+    y={{ domain: [Math.max(rMin, 1e-4) / 2, 10], log: true, label: 'rₖ' }}
+    series={rSeries}
+    guides={[[[0, 1], [Math.ceil(kMax / 10) * 10, 1]]]}
+  />
+</div>

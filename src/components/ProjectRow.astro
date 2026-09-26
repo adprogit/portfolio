@@ -1,0 +1,82 @@
+---
+/**
+ * Un projet, en une ligne — comme dans un sommaire.
+ *
+ * Il n'y a plus de vignette. Une capture d'écran de 300 px ne dit rien d'un
+ * rendu ni d'une chaîne de vision : elle occupe surtout la place, et neuf
+ * vignettes empilées font une page bavarde. Restent les quatre choses qui
+ * permettent de choisir où aller : le titre, une ligne de quoi, la pile
+ * technique, l'année.
+ *
+ * Le seul aplat de couleur du site est le filet vertical à gauche. Au repos il
+ * est neutre ; au survol il prend l'accent du projet, s'épaissit, et le titre
+ * s'allume avec lui (voir `.row` dans `global.css`). C'est ce filet qui
+ * s'étire en bande d'en-tête quand on ouvre la page.
+ *
+ * Au survol encore, les chiffres du projet remontent à la place de sa pile
+ * technique — un relevé, comme un affichage de debug par-dessus un rendu. Les
+ * deux occupent la même cellule : rien ne se décale, c'est une lecture qui en
+ * remplace une autre.
+ *
+ * Le relevé est `aria-hidden` et la pile reste lisible aux lecteurs d'écran :
+ * un survol n'existe ni au clavier ni à la voix, et ces chiffres sont de toute
+ * façon démontrés dans la page du projet.
+ */
+import type { ResolvedProject } from '../data/projects';
+import { toneVar } from '../data/projects';
+import { projectPath, type Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  project: ResolvedProject;
+  lang: Locale;
+}
+
+const { project, lang } = Astro.props;
+const t = useT(lang);
+---
+
+<a
+  href={projectPath(lang, project.slug)}
+  transition:name={`tone-${project.slug}`}
+  class="row group block py-4"
+  style={`--row-accent: ${toneVar[project.tone]}`}
+>
+  <span class="flex items-baseline justify-between gap-5">
+    <span class="row-title font-mono text-lg font-semibold tracking-tight text-balance text-ink-strong sm:text-xl">
+      {project.title}
+    </span>
+
+    {/*
+      Plus de date. Une année vieillit un projet sans rien en dire — « 2023 »
+      ne raconte pas si le travail est bon. Seul un projet encore ouvert porte
+      une mention, parce que celle-là se vérifie.
+    */}
+    {project.status === 'wip' && (
+      <span class="row-year shrink-0 font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase">
+        {t('project.wip')}
+      </span>
+    )}
+  </span>
+
+  <span class="mt-1.5 block max-w-[62ch] text-sm leading-relaxed text-pretty text-ink-soft">
+    {project.tagline}
+  </span>
+
+  {/*
+    La pile et les chiffres se superposent dans la même cellule de grille : la
+    boîte prend la hauteur du plus grand des deux, donc la ligne ne bouge pas
+    d'un pixel quand on passe de l'un à l'autre.
+  */}
+  <span class="row-readout mt-2 grid truncate font-mono text-xs">
+    {/* La pile tient sur une ligne : au-delà elle deviendrait un paragraphe et
+        cesserait de se survoler du regard. */}
+    <span class="row-tech truncate text-ink-soft">{project.tech.join('  ·  ')}</span>
+
+    {project.metrics && (
+      <span class="row-metrics truncate" aria-hidden="true">
+        {project.metrics.join('  ·  ')}
+      </span>
+    )}
+  </span>
+</a>

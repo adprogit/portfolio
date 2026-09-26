@@ -1,0 +1,57 @@
+---
+/**
+ * Chapitre 06 — Lambert : le même faisceau, deux surfaces. Incliné de θ, il
+ * s'étale sur 1/cos θ fois plus de surface ; chaque point reçoit donc cos θ
+ * fois moins de lumière. Les empreintes se tracent à l'apparition.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { add, arrowHead, scale, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const half = 30;
+const beamTop = 36;
+const beams = [-30, -15, 0, 15, 30];
+
+// Panneau de gauche : surface face au faisceau.
+const L0: Vec = [170, 196];
+
+// Panneau de droite : surface inclinée de θ = 60° — cos θ = 1/2, l'empreinte double.
+const theta = (60 * Math.PI) / 180;
+const P0: Vec = [470, 176];
+const u: Vec = [Math.cos(theta), -Math.sin(theta)];
+const n: Vec = [-Math.sin(theta), -Math.cos(theta)];
+const onPlane = (x: number): Vec => {
+  const s = (x - P0[0]) / u[0];
+  return add(P0, scale(u, s));
+};
+const footA = onPlane(P0[0] - half);
+const footB = onPlane(P0[0] + half);
+const planeA = add(P0, scale(u, -90));
+const planeB = add(P0, scale(u, 90));
+const nTip = add(P0, scale(n, 64));
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.lambert.alt')}>
+  {beams.map((dx) => (
+    <line class="d-light" x1={L0[0] + dx} y1={beamTop} x2={L0[0] + dx} y2={L0[1]} />
+  ))}
+  <line class="d-line" x1={L0[0] - 90} y1={L0[1]} x2={L0[0] + 90} y2={L0[1]} />
+  <line class="d-foot d-draw" pathLength="1" x1={L0[0] - half} y1={L0[1] + 6} x2={L0[0] + half} y2={L0[1] + 6} />
+  <text class="d-label" x={L0[0]} y={L0[1] + 30} text-anchor="middle">θ = 0° · A</text>
+
+  {beams.map((dx) => {
+    const end = onPlane(P0[0] + dx);
+    return <line class="d-light" x1={P0[0] + dx} y1={beamTop} x2={end[0]} y2={end[1]} />;
+  })}
+  <line class="d-line" x1={planeA[0]} y1={planeA[1]} x2={planeB[0]} y2={planeB[1]} />
+  <line class="d-foot d-draw" pathLength="1" x1={footA[0]} y1={footA[1]} x2={footB[0]} y2={footB[1]} />
+  <line class="d-line" x1={P0[0]} y1={P0[1]} x2={nTip[0]} y2={nTip[1]} />
+  <polygon class="d-head" points={arrowHead(P0, nTip)} />
+  <text class="d-label" x={nTip[0] - 16} y={nTip[1] - 6}>n</text>
+  <text class="d-label" x={P0[0] + 60} y={P0[1] + 50}>θ = 60° · A / cos θ = 2A</text>
+
+  <text class="d-label" x="40" y="24">{t('diagram.light')}</text>
+</svg>

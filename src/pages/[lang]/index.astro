@@ -1,0 +1,19 @@
+---
+/** Accueil des langues secondaires : /fr/ et /de/. */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import HomeBody from '../../components/HomeBody.astro';
+import { altLocales, type Locale } from '../../i18n/config';
+
+export function getStaticPaths() {
+  return altLocales.map((locale) => ({
+    params: { lang: locale },
+    props: { lang: locale },
+  }));
+}
+
+const { lang } = Astro.props as { lang: Locale };
+---
+
+<BaseLayout lang={lang} home>
+  <HomeBody lang={lang} />
+</BaseLayout>

@@ -1,0 +1,24 @@
+---
+/** Le gradient conjugué à κ = 30, en fonction de la dimension, face à y = n. */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import { benchDimension } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const rows = benchDimension();
+---
+
+<Legend entries={[{ key: 'pr', label: 'CG-PR+' }, { key: 'gd', label: 'y = n', dash: true }]} />
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="bench-dim"
+    alt={t('diagram.benchDimension.alt')}
+    x={{ domain: [1.5, 260], log: true, label: t('plot.dimension') }}
+    y={{ domain: [1.5, 260], log: true, label: t('plot.iterations') }}
+    series={[{ key: 'pr', points: rows.map((r) => [r.n, r.iterations] as [number, number]), marker: 'dot' }]}
+    guides={[[[1.5, 1.5], [260, 260]]]}
+  />
+</div>

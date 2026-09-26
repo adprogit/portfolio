@@ -1,0 +1,51 @@
+---
+/**
+ * Chapitre 07 — Blinn-Phong : H, le demi-vecteur entre la lumière et l'œil, et
+ * le lobe max(n·H, 0)^ns qui se resserre quand ns monte. Les trois lobes sont
+ * tracés depuis la formule, pas à la main, et apparaissent du plus large au
+ * plus serré.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { add, arrowHead, lobePath, normalize, scale, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const P: Vec = [300, 214];
+const polar = (deg: number): Vec => [Math.cos((deg * Math.PI) / 180), -Math.sin((deg * Math.PI) / 180)];
+
+const L = polar(142);
+const V = polar(58);
+const H = normalize(add(L, V));
+const N: Vec = [0, -1];
+const axis = Math.atan2(H[1], H[0]);
+
+const lobes = [8, 32, 128];
+const tip = (v: Vec, k: number) => add(P, scale(v, k));
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.blinnLobes.alt')}>
+  <line class="d-line" x1="90" y1={P[1]} x2="520" y2={P[1]} />
+
+  {lobes.map((ns, i) => (
+    <path class="d-lobe d-anim" style={`--i: ${i}`} d={lobePath(P, axis, ns, 176)} />
+  ))}
+
+  <line class="d-light" x1={P[0]} y1={P[1]} x2={tip(L, 160)[0]} y2={tip(L, 160)[1]} />
+  <polygon class="d-head-light" points={arrowHead(P, tip(L, 160))} />
+  <line class="d-line" x1={P[0]} y1={P[1]} x2={tip(V, 160)[0]} y2={tip(V, 160)[1]} />
+  <polygon class="d-head" points={arrowHead(P, tip(V, 160))} />
+  <line class="d-rule" x1={P[0]} y1={P[1]} x2={tip(N, 150)[0]} y2={tip(N, 150)[1]} />
+  <line class="d-ray" x1={P[0]} y1={P[1]} x2={tip(H, 120)[0]} y2={tip(H, 120)[1]} />
+  <polygon class="d-head-accent" points={arrowHead(P, tip(H, 120))} />
+
+  <text class="d-label" x={tip(L, 172)[0] - 10} y={tip(L, 172)[1]}>L</text>
+  <text class="d-label" x={tip(V, 172)[0]} y={tip(V, 172)[1]}>V</text>
+  <text class="d-label" x={tip(N, 162)[0] - 4} y={tip(N, 162)[1]}>n</text>
+  <text class="d-label-accent" x={tip(H, 130)[0] + 6} y={tip(H, 130)[1]}>H</text>
+
+  <text class="d-label-accent" x="540" y="120">ns = 8</text>
+  <text class="d-label-accent" x="540" y="142">ns = 32</text>
+  <text class="d-label-accent" x="540" y="164">ns = 128</text>
+</svg>

@@ -1,0 +1,89 @@
+---
+/**
+ * Un schéma du cours : l'aiguillage vers son composant, dans une figure
+ * numérotée comme les autres.
+ *
+ * Les schémas sont du SVG en ligne, pas des images : c'est ce qui leur permet
+ * de prendre les couleurs du thème (variables CSS), de basculer avec lui, et de
+ * porter des libellés traduits. Une image produite à part — un PNG Matplotlib —
+ * resterait blanche en thème sombre et anglaise en allemand.
+ *
+ * L'accent de la note arrive par `--diagram-accent` : les rayons et les
+ * vecteurs portent sa couleur, le reste est neutre.
+ *
+ * La figure n'a pas de fond : le SVG est transparent et prend celui de la
+ * page, dans les deux thèmes.
+ */
+import type { DiagramKey } from '../../data/diagrams';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import Pinhole from './Pinhole.astro';
+import RaySphere from './RaySphere.astro';
+import SphereTracing from './SphereTracing.astro';
+import FiniteNormal from './FiniteNormal.astro';
+import Lambert from './Lambert.astro';
+import BlinnLobes from './BlinnLobes.astro';
+import SoftShadow from './SoftShadow.astro';
+import Mirror from './Mirror.astro';
+import FrprKappa from './FrprKappa.astro';
+import FrprBatch from './FrprBatch.astro';
+import FrprRosenbrock from './FrprRosenbrock.astro';
+import FrprAnim from './FrprAnim.astro';
+import BenchTrajectories from './BenchTrajectories.astro';
+import BenchKappa from './BenchKappa.astro';
+import BenchDimension from './BenchDimension.astro';
+import BenchRate from './BenchRate.astro';
+import BenchLineSearch from './BenchLineSearch.astro';
+
+interface Props {
+  diagram: DiagramKey;
+  caption: string;
+  lang: Locale;
+  /** Position dans l'ordre de lecture, pour la légende numérotée. */
+  index: number;
+}
+
+const { diagram, caption, lang, index } = Astro.props;
+const t = useT(lang);
+
+const components = {
+  pinhole: Pinhole,
+  raySphere: RaySphere,
+  sphereTracing: SphereTracing,
+  finiteNormal: FiniteNormal,
+  lambert: Lambert,
+  blinnLobes: BlinnLobes,
+  softShadow: SoftShadow,
+  mirror: Mirror,
+  frprKappa: FrprKappa,
+  frprBatch: FrprBatch,
+  frprRosenbrock: FrprRosenbrock,
+  frprAnim: FrprAnim,
+  benchTrajectories: BenchTrajectories,
+  benchKappa: BenchKappa,
+  benchDimension: BenchDimension,
+  benchRate: BenchRate,
+  benchLineSearch: BenchLineSearch,
+} satisfies Record<DiagramKey, unknown>;
+
+const Component = components[diagram];
+---
+
+{/*
+  Pas de cadre. Les schémas et les tracés sont transparents : posés sur la page,
+  ils en prennent le fond. Une boîte plus sombre, et plus large que la colonne
+  de texte, faisait de chaque figure un encart collé sur la page — deux fonds,
+  deux largeurs, là où il n'en faut qu'un.
+*/}
+<figure class="diagram reveal">
+  <div class="py-2">
+    <Component lang={lang} />
+  </div>
+
+  <figcaption class="mt-2.5 flex gap-3 text-sm leading-relaxed text-pretty text-ink-soft">
+    <span class="shrink-0 pt-px font-mono text-xs">
+      {t('figure.label', { n: String(index + 1).padStart(2, '0') })}
+    </span>
+    {caption}
+  </figcaption>
+</figure>

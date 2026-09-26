@@ -1,0 +1,45 @@
+---
+/** FR et PR sur six fonctions non convexes, 100 départs chacune. */
+import BarPanel from '../plots/BarPanel.astro';
+import Legend from '../plots/Legend.astro';
+import { frprBatch } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const data = frprBatch();
+// Des abréviations : six noms entiers ne tiennent pas sous 360 unités.
+const short: Record<string, string> = {
+  Himmelblau: 'Himm.',
+  Beale: 'Beale',
+  Rastrigin: 'Rastr.',
+  Ackley: 'Ackley',
+  'Three-Hump-Camel': 'Camel',
+  'Goldstein-Price': 'G-P',
+};
+const categories = data.map((d) => short[d.name]);
+const maxIt = Math.max(...data.flatMap((d) => [d.fr.iterations, d.pr.iterations]).filter(Number.isFinite));
+---
+
+<Legend entries={[{ key: 'fr', label: 'FR' }, { key: 'pr', label: 'PR+' }]} />
+<div class="plot-grid" data-panels="2">
+  <BarPanel
+    alt={t('diagram.frprBatch.alt')}
+    categories={categories}
+    series={[
+      { key: 'fr', values: data.map((d) => d.fr.rate) },
+      { key: 'pr', values: data.map((d) => d.pr.rate) },
+    ]}
+    y={{ domain: [0, 1], label: t('plot.successRate') }}
+  />
+  <BarPanel
+    alt={t('diagram.frprBatch.alt')}
+    categories={categories}
+    series={[
+      { key: 'fr', values: data.map((d) => d.fr.iterations) },
+      { key: 'pr', values: data.map((d) => d.pr.iterations) },
+    ]}
+    y={{ domain: [0, Math.ceil(maxIt / 50) * 50], label: t('plot.meanIterations') }}
+  />
+</div>

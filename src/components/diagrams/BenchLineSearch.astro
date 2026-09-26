@@ -1,0 +1,34 @@
+---
+/** BFGS sur Rosenbrock, grille 5 × 5 de réglages d'Armijo : itérations et évaluations de f. */
+import HeatPanel from '../plots/HeatPanel.astro';
+import { benchLineSearch } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const { cs, taus, cells } = benchLineSearch();
+const rows = cs.map(String);
+const cols = taus.map(String);
+---
+
+<div class="plot-grid" data-panels="2">
+  <HeatPanel
+    title={t('plot.iterations')}
+    alt={t('diagram.benchLineSearch.alt')}
+    rows={rows}
+    cols={cols}
+    values={cells.map((r) => r.map((c) => c.iterations))}
+    rowLabel="c"
+    colLabel={t('plot.tau')}
+  />
+  <HeatPanel
+    title={t('plot.evaluations')}
+    alt={t('diagram.benchLineSearch.alt')}
+    rows={rows}
+    cols={cols}
+    values={cells.map((r) => r.map((c) => c.evaluations))}
+    rowLabel="c"
+    colLabel={t('plot.tau')}
+  />
+</div>

@@ -1,0 +1,70 @@
+---
+/**
+ * Des séries en courbes, sur échelles linéaires ou logarithmiques. Une série
+ * peut se tracer en trait plein, en tirets, en points seuls ; `failed` marque
+ * d'un cercle creux les runs arrêtés au plafond d'itérations.
+ */
+import Axes from './Axes.astro';
+import { MARGIN, PANEL, points, scale } from '../../lib/plot';
+
+export interface Series {
+  key: string;
+  points: [number, number][];
+  dash?: boolean;
+  marker?: 'dot' | 'cross' | 'none';
+  failed?: [number, number][];
+}
+
+interface Props {
+  id: string;
+  title?: string;
+  alt: string;
+  x: { domain: [number, number]; log?: boolean; label: string };
+  y: { domain: [number, number]; log?: boolean; label: string };
+  series: Series[];
+  /** Droites de référence (y = n, …), en pointillés neutres. */
+  guides?: [number, number][][];
+}
+
+const { id, title, alt, x, y, series, guides = [] } = Astro.props;
+const sx = scale(x.domain, [MARGIN.left, PANEL.width - MARGIN.right], x.log);
+const sy = scale(y.domain, [PANEL.height - MARGIN.bottom, MARGIN.top], y.log);
+const map = (pts: [number, number][]) => pts.map(([a, b]) => [sx(a), sy(b)] as [number, number]);
+---
+
+<svg class="plot" viewBox={`0 0 ${PANEL.width} ${PANEL.height}`} role="img" aria-label={alt}>
+  <defs>
+    <clipPath id={`clip-${id}`}>
+      <rect
+        x={MARGIN.left}
+        y={MARGIN.top}
+        width={PANEL.width - MARGIN.left - MARGIN.right}
+        height={PANEL.height - MARGIN.top - MARGIN.bottom}
+      />
+    </clipPath>
+  </defs>
+
+  <Axes title={title} sx={sx} sy={sy} xLabel={x.label} yLabel={y.label} />
+
+  <g clip-path={`url(#clip-${id})`}>
+    {guides.map((g) => <polyline class="p-guide" points={points(map(g))} />)}
+
+    {series.map((s) => (
+      <g class={`s-${s.key}`}>
+        {s.marker !== 'cross' && (
+          <polyline class:list={['p-line', s.dash && 'p-dash']} points={points(map(s.points))} />
+        )}
+        {map(s.points).map(([px, py]) =>
+          s.marker === 'cross' ? (
+            <path class="p-cross" d={`M${px - 3.5},${py - 3.5}l7,7m0,-7l-7,7`} />
+          ) : s.marker === 'dot' ? (
+            <circle class="p-dot" cx={px} cy={py} r="2.4" />
+          ) : null
+        )}
+        {map(s.failed ?? []).map(([px, py]) => (
+          <circle class="p-open" cx={px} cy={py} r="3.6" />
+        ))}
+      </g>
+    ))}
+  </g>
+</svg>

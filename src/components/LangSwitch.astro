@@ -1,0 +1,44 @@
+---
+/**
+ * Sélecteur de langue : trois liens internes vers la même page traduite.
+ * Pas de JS, pas de cookie — l'URL porte la langue.
+ */
+import { locales, localeNames, translatePath, type Locale } from '../i18n/config';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useT(lang);
+const here = Astro.url.pathname;
+---
+
+<nav aria-label={t('a11y.lang')}>
+  <ul class="flex items-center gap-0.5">
+    {
+      locales.map((locale) => {
+        const current = locale === lang;
+        return (
+          <li>
+            <a
+              href={translatePath(here, locale)}
+              hreflang={locale}
+              lang={locale}
+              aria-current={current ? 'true' : undefined}
+              title={localeNames[locale]}
+              class:list={[
+                'inline-flex h-7 items-center rounded px-1.5 font-mono text-xs uppercase transition-colors',
+                current ? 'glow text-brand' : 'text-ink-soft hover:text-ink-strong',
+              ]}
+            >
+              {locale}
+              <span class="sr-only">— {localeNames[locale]}</span>
+            </a>
+          </li>
+        );
+      })
+    }
+  </ul>
+</nav>

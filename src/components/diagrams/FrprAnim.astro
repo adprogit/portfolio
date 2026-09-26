@@ -1,0 +1,50 @@
+---
+/**
+ * FR et PR+ sur Rosenbrock depuis (−1,2 ; 1), pas à pas et en boucle. Les
+ * deux panneaux partagent la même cadence et le même cycle : PR+ a fini et
+ * reste affiché pendant que FR avance encore, puis les deux recommencent
+ * ensemble.
+ */
+import PathPanel from '../plots/PathPanel.astro';
+import { frprPaths, rosenbrock } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const { fr, pr } = frprPaths();
+const pts = (xs: Float64Array[]) => xs.map((x) => [x[0], x[1]] as [number, number]);
+const f = (x: number, y: number) => rosenbrock.f(Float64Array.of(x, y));
+const levels = [0.3, 1.5, 5, 15, 40, 100, 250, 600];
+
+// 70 ms par itération, et deux secondes de pause sur le chemin complet de FR.
+const step = 0.07;
+const loop = { step, cycle: +(Math.max(fr.iterations, pr.iterations) * step + 2).toFixed(2) };
+---
+
+<div class="plot-grid" data-panels="2">
+  <PathPanel
+    id="anim-fr"
+    title={`Fletcher–Reeves · ${fr.iterations}`}
+    alt={t('diagram.frprAnim.alt')}
+    x={[-1.6, 1.9]}
+    y={[-0.5, 2.7]}
+    f={f}
+    levels={levels}
+    paths={[{ key: 'fr', points: pts(fr.xs) }]}
+    optimum={[1, 1]}
+    loop={loop}
+  />
+  <PathPanel
+    id="anim-pr"
+    title={`Polak–Ribière · ${pr.iterations}`}
+    alt={t('diagram.frprAnim.alt')}
+    x={[-1.6, 1.9]}
+    y={[-0.5, 2.7]}
+    f={f}
+    levels={levels}
+    paths={[{ key: 'pr', points: pts(pr.xs) }]}
+    optimum={[1, 1]}
+    loop={loop}
+  />
+</div>

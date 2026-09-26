@@ -1,0 +1,10 @@
+---
+/** Accueil, langue de base (anglais) — les autres sont sous `[lang]/`. */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import HomeBody from '../components/HomeBody.astro';
+import { defaultLocale } from '../i18n/config';
+---
+
+<BaseLayout lang={defaultLocale} home>
+  <HomeBody lang={defaultLocale} />
+</BaseLayout>

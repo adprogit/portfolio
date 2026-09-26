@@ -1,0 +1,239 @@
+---
+/**
+ * Corps d'une page projet, partagé par les trois langues.
+ *
+ * La page ouvre sur du texte, pas sur une image : l'année, le titre, une
+ * phrase, la pile, le dépôt. Les captures ne reviennent que dans les sections,
+ * là où elles prouvent quelque chose — et la couverture ne sert plus qu'à
+ * l'image de partage (`og:image`), qu'on ne voit jamais sur le site.
+ *
+ * Le seul lien sortant est celui du dépôt, quand le projet en a un de public ;
+ * sinon, la même ligne dit pourquoi il n'y en a pas.
+ */
+import { getImage } from 'astro:assets';
+import Icon from './Icon.astro';
+import SectionBlocks from './SectionBlocks.astro';
+import Lightbox from './Lightbox.astro';
+import { toneVar, toneText, type ResolvedProject, type ResolvedShot } from '../data/projects';
+import { localeRoot, notePath, type Locale } from '../i18n/config';
+import { notesForProject } from '../data/notes';
+import { useT } from '../i18n/ui';
+
+interface Props {
+  project: ResolvedProject;
+  lang: Locale;
+}
+
+const { project, lang } = Astro.props;
+const t = useT(lang);
+
+// Les notes qui tirent leur code de ce projet : un cours, une explication.
+const notes = notesForProject(lang, project.slug);
+
+/*
+ * Les visuels de la page, dans l'ordre où on les rencontre en lisant. C'est cet
+ * ordre qui numérote les figures et qui ordonne le lightbox.
+ *
+ * Il se lit dans les sections, et surtout pas dans `gallery`. La couverture ne
+ * s'affiche plus nulle part — elle ne sert qu'à `og:image` — mais elle est dans
+ * `gallery`, et l'ancienne liste la mettait en tête : toute la numérotation
+ * était décalée d'un cran, et comme l'ordre de la galerie n'est pas celui de la
+ * lecture, on pouvait lire une figure « 04 » avant une « 03 ». C'était le cas
+ * sur la page du codec neural.
+ *
+ * `gallery` garde un rôle, et un seul : c'est la liste que `resolveProject`
+ * traverse, donc c'est elle qui garantit que chaque visuel déclaré a bien son
+ * texte de remplacement et sa légende dans les trois langues. Elle valide, elle
+ * n'affiche plus.
+ */
+const shots: ResolvedShot[] = [];
+const shotIndex = new Map<string, number>();
+
+for (const section of project.sections) {
+  for (const block of section.blocks) {
+    if (block.type !== 'media') continue;
+    const { src } = block.shot.image;
+    if (shotIndex.has(src)) continue;
+    shotIndex.set(src, shots.length);
+    shots.push(block.shot);
+  }
+}
+
+// Version large de chaque visuel, générée à la compilation pour le lightbox.
+// Les GIF ne passent pas par le pipeline : ils y vont tels quels.
+const lightboxShots = await Promise.all(
+  shots.map(async (shot) => {
+    const width = Math.min(shot.image.width, 1800);
+    const height = Math.round((shot.image.height / shot.image.width) * width);
+
+    const large = shot.animated
+      ? shot.image
+      : await getImage({ src: shot.image, width, format: 'webp', quality: 84 });
+
+    return {
+      src: large.src,
+      alt: shot.alt,
+      caption: shot.caption,
+      width: shot.animated ? shot.image.width : width,
+      height: shot.animated ? shot.image.height : height,
+      title: project.title,
+    };
+  })
+);
+
+/**
+ * JSON inclus dans la page. `</script>` dans une chaîne fermerait la balise :
+ * on neutralise `<` (et les séparateurs de ligne Unicode, invalides en JS).
+ */
+const lightboxJson = JSON.stringify(lightboxShots)
+  .replace(/</g, '\\u003c')
+  .replace(/\u2028/g, '\\u2028')
+  .replace(/\u2029/g, '\\u2029');
+
+---
+
+{/* Où l'on en est dans la page. Deux pixels, dans l'accent du projet, pilotés
+    par la seule position du défilement — voir `.progress` dans `global.css`. */}
+<div
+  class="progress"
+  style={`--progress-accent: ${toneVar[project.tone]}`}
+  aria-hidden="true"
+>
+</div>
+
+{/* Le filet de la ligne d'accueil s'étire ici : même `transition:name`, donc
+    c'est lui qui devient la bande d'en-tête en changeant de page. */}
+<div
+  class="h-0.5 w-full"
+  style={`background: ${toneVar[project.tone]}`}
+  aria-hidden="true"
+  transition:name={`tone-${project.slug}`}
+>
+</div>
+
+<article class="shell px-5 pt-12 pb-24 sm:px-8 sm:pt-16 sm:pb-32">
+  {/* ── En-tête ──────────────────────────────────────────────── */}
+  <header class="measure" data-reveal-group>
+    {/* Pas de date : voir `ProjectRow.astro`. Seule une mention « en cours »
+        subsiste, parce qu'elle se vérifie là où une année se périme. */}
+    {project.status === 'wip' && (
+      <p class:list={['reveal glow font-mono text-2xs tracking-[0.16em] uppercase', toneText[project.tone]]}>
+        {t('project.wip')}
+      </p>
+    )}
+
+    <h1
+      class:list={['reveal glow-title text-lead text-balance', toneText[project.tone]]}
+      data-reveal-blur
+    >
+      {project.title}
+    </h1>
+
+    <p class="reveal mt-4 max-w-[52ch] text-pretty text-ink">
+      {project.tagline}
+    </p>
+
+    <p class="reveal mt-6 font-mono text-xs text-ink-soft" aria-label={t('a11y.tech')}>
+      {project.tech.join('  ·  ')}
+    </p>
+
+    {/* Le dépôt, ou la raison de son absence : la ligne est toujours là. */}
+    {
+      project.repo ? (
+        <a
+          class="link mt-5 inline-flex items-center gap-2 font-mono text-sm"
+          href={project.repo}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon name="github" class="h-4 w-4" />
+          {t('project.source')}
+        </a>
+      ) : (
+        <p class="mt-5 inline-flex items-center gap-2 font-mono text-sm text-ink-soft">
+          <Icon name="lock" class="h-4 w-4" />
+          {t('project.private')}
+        </p>
+      )
+    }
+
+    {/* Le lien inverse de la note : le cours tiré de ce projet. */}
+    {notes.map((note) => (
+      <a
+        class="link mt-3 flex w-fit items-center gap-2 font-mono text-sm"
+        href={notePath(lang, note.slug)}
+      >
+        <Icon name="arrow-right" class="h-4 w-4" />
+        {t('note.course')} · {note.title} {note.titleAccent}
+      </a>
+    ))}
+
+    <p class="reveal mt-8 leading-relaxed text-pretty text-ink">
+      {project.description}
+    </p>
+  </header>
+
+  {
+    project.sections.length > 0 && (
+      <>
+        {/* ── Sommaire ─────────────────────────────────────── */}
+        <nav
+          class="measure reveal mt-12 border-t border-rule pt-5"
+          data-reveal-group
+          aria-labelledby="contents-title"
+        >
+          <p
+            id="contents-title"
+            class="font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase"
+          >
+            {t('project.contents')}
+          </p>
+          <ol class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+            {project.sections.map((section) => (
+              <li>
+                <a href={`#${section.id}`} class="group flex items-baseline gap-3 font-mono text-sm">
+                  <span class:list={['shrink-0 tabular-nums', toneText[project.tone]]}>
+                    {section.kicker}
+                  </span>
+                  <span class="text-ink-soft transition-colors group-hover:text-ink-strong">
+                    {section.title}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+
+        {project.sections.map((section) => (
+          <SectionBlocks
+            section={section}
+            lang={lang}
+            group={project.slug}
+            shotIndex={shotIndex}
+            tone={project.tone}
+          />
+        ))}
+      </>
+    )
+  }
+
+  <div class="measure mt-16 border-t border-rule pt-6" data-reveal-group>
+    <a href={localeRoot(lang)} class="link group inline-flex items-center gap-2 font-mono text-sm">
+      <Icon
+        name="arrow-left"
+        class="h-4 w-4 transition-transform group-hover:-translate-x-0.5"
+      />
+      {t('nav.back')}
+    </a>
+  </div>
+</article>
+
+{/* Données du lightbox pour ce projet */}
+<script
+  is:inline
+  type="application/json"
+  data-lightbox-group={project.slug}
+  set:html={lightboxJson}
+/>
+
+<Lightbox lang={lang} />

@@ -1,0 +1,43 @@
+---
+/**
+ * Chapitre 02 — le ray casting : trois rayons, trois signes du discriminant.
+ * Les points d'impact sont calculés par la même formule que l'extrait du cours.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { raycastCircle, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const sphere = { c: [420, 138] as Vec, r: 72 };
+const x0 = 56;
+const x1 = 612;
+
+// Au-dessus, pile sur le bord, à travers : Δ < 0, Δ = 0, Δ > 0.
+const rows = [
+  { y: 40, label: 'Δ < 0', key: 'diagram.miss' },
+  { y: sphere.c[1] - sphere.r, label: 'Δ = 0', key: 'diagram.tangent' },
+  { y: 176, label: 'Δ > 0', key: 'diagram.hit' },
+] as const;
+
+const rays = rows.map((row) => {
+  const { hits } = raycastCircle([x0, row.y], [1, 0], sphere);
+  return { ...row, hits: hits.map((h) => x0 + h) };
+});
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.raySphere.alt')}>
+  <circle class="d-shape" cx={sphere.c[0]} cy={sphere.c[1]} r={sphere.r} />
+
+  {rays.map((ray) => (
+    <g>
+      <line class={ray.hits.length ? 'd-ray' : 'd-rule'} x1={x0} y1={ray.y} x2={x1} y2={ray.y} />
+      <circle class="d-dot" cx={x0} cy={ray.y} r="3" />
+      {ray.hits.map((x) => (
+        <circle class="d-dot-accent" cx={x} cy={ray.y} r="4" />
+      ))}
+      <text class="d-label" x={x0} y={ray.y - 9}>{ray.label} · {t(ray.key)}</text>
+    </g>
+  ))}
+</svg>

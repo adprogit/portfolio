@@ -1,0 +1,68 @@
+---
+/** Newton, gradient conjugué et BFGS sur deux quadratiques et sur Rosenbrock. */
+import PathPanel from '../plots/PathPanel.astro';
+import Legend from '../plots/Legend.astro';
+import { benchPaths, quadIll, quadWell, rosenbrock } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const P = benchPaths();
+const pts = (xs: Float64Array[]) => xs.map((x) => [x[0], x[1]] as [number, number]);
+const at = (p: { f: (x: Float64Array) => number }) => (x: number, y: number) => p.f(Float64Array.of(x, y));
+const quadPaths = (r: typeof P.well) => [
+  { key: 'newton', points: pts(r.newton.xs) },
+  { key: 'fr', points: pts(r.fr.xs) },
+  { key: 'pr', points: pts(r.pr.xs) },
+  { key: 'bfgs', points: pts(r.bfgs.xs) },
+];
+---
+
+<Legend
+  entries={[
+    { key: 'newton', label: 'Newton' },
+    { key: 'fr', label: 'CG-FR' },
+    { key: 'pr', label: 'CG-PR+' },
+    { key: 'bfgs', label: 'BFGS' },
+  ]}
+/>
+<div class="plot-grid" data-panels="3">
+  <PathPanel
+    id="traj-well"
+    title="κ = 2"
+    alt={t('diagram.benchTrajectories.alt')}
+    x={[0, 6]}
+    y={[-4, 3]}
+    f={at(quadWell)}
+    levels={[0.5, 2, 5, 10, 18, 28]}
+    paths={quadPaths(P.well)}
+    optimum={[1, 1]}
+  />
+  <PathPanel
+    id="traj-ill"
+    title="κ = 1 000"
+    alt={t('diagram.benchTrajectories.alt')}
+    x={[0, 6]}
+    y={[0.6, 2.2]}
+    f={at(quadIll)}
+    levels={[0.5, 2, 5, 10, 50, 200, 500]}
+    paths={quadPaths(P.ill)}
+    optimum={[1, 1]}
+  />
+  <PathPanel
+    id="traj-rosen"
+    title="Rosenbrock"
+    alt={t('diagram.benchTrajectories.alt')}
+    x={[-1.6, 1.9]}
+    y={[-0.5, 2.7]}
+    f={at(rosenbrock)}
+    levels={[0.3, 1.5, 5, 15, 40, 100, 250, 600]}
+    paths={[
+      { key: 'fr', points: pts(P.rosenbrock.fr.xs) },
+      { key: 'pr', points: pts(P.rosenbrock.pr.xs) },
+      { key: 'bfgs', points: pts(P.rosenbrock.bfgs.xs) },
+    ]}
+    optimum={[1, 1]}
+  />
+</div>

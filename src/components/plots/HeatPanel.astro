@@ -1,0 +1,50 @@
+---
+/**
+ * Une carte de chaleur à valeurs écrites : chaque case porte son nombre, et
+ * sa teinte n'en est que le rappel. L'intensité est la seule chose qui varie —
+ * une seule couleur, celle de l'accent, plus ou moins couvrante — pour que la
+ * carte se lise dans les deux thèmes sans échelle de couleurs à apprendre.
+ */
+import { MARGIN, PANEL } from '../../lib/plot';
+
+interface Props {
+  title?: string;
+  alt: string;
+  rows: string[];
+  cols: string[];
+  values: number[][];
+  rowLabel: string;
+  colLabel: string;
+}
+
+const { title, alt, rows, cols, values, rowLabel, colLabel } = Astro.props;
+const [left, top] = [MARGIN.left + 6, MARGIN.top];
+const w = (PANEL.width - MARGIN.right - left) / cols.length;
+const h = (PANEL.height - MARGIN.bottom - top) / rows.length;
+const flat = values.flat();
+const [lo, hi] = [Math.min(...flat), Math.max(...flat)];
+const level = (v: number) => 0.12 + (0.78 * (v - lo)) / (hi - lo || 1);
+---
+
+<svg class="plot" viewBox={`0 0 ${PANEL.width} ${PANEL.height}`} role="img" aria-label={alt}>
+  {title && <text class="p-title" x={MARGIN.left} y={14}>{title}</text>}
+
+  {values.map((row, r) =>
+    row.map((v, c) => (
+      <g>
+        <rect class="p-heat" x={left + c * w} y={top + r * h} width={w - 1.5} height={h - 1.5} fill-opacity={level(v)} />
+        <text class="p-cell" x={left + c * w + w / 2} y={top + r * h + h / 2 + 4} text-anchor="middle">{v}</text>
+      </g>
+    ))
+  )}
+
+  {rows.map((label, r) => (
+    <text class="p-tick" x={left - 5} y={top + r * h + h / 2 + 3.5} text-anchor="end">{label}</text>
+  ))}
+  {cols.map((label, c) => (
+    <text class="p-tick" x={left + c * w + w / 2} y={PANEL.height - MARGIN.bottom + 13} text-anchor="middle">{label}</text>
+  ))}
+
+  <text class="p-label" x={left + (w * cols.length) / 2} y={PANEL.height - 6} text-anchor="middle">{colLabel}</text>
+  <text class="p-label" transform={`translate(11 ${top + (h * rows.length) / 2}) rotate(-90)`} text-anchor="middle">{rowLabel}</text>
+</svg>

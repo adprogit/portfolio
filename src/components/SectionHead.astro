@@ -1,0 +1,35 @@
+---
+/**
+ * Tête de section de l'accueil : un surtitre, un titre, un filet.
+ *
+ * Le surtitre s'ouvre sur `//`. Ce n'est pas une décoration de terminal posée
+ * là pour le genre : c'est la marque de commentaire de tous les langages du
+ * site, et elle dit exactement ce qu'elle dit dans le code — la ligne qui suit
+ * n'est pas le propos, elle l'annonce. Elle sépare donc l'étiquette du titre
+ * sans avoir à les éloigner ni à changer leur corps.
+ *
+ * Les sections étaient numérotées, `01` et `02`. Les compétences étant passées
+ * en annexe, il ne restait qu'un `01` — un ordinal seul, qui annonce un `02`
+ * qui n'existe plus. Les pages projet gardent leur numérotation, où elle compte
+ * vraiment : quatre à six sections, et un sommaire qui y renvoie.
+ */
+interface Props {
+  title: string;
+  /** Ce que la section contient, en un mot ou deux. Sans le `//`. */
+  kicker: string;
+  /** Ancre de la section, posée sur le <h2> pour la navigation du bandeau. */
+  id: string;
+}
+
+const { title, kicker, id } = Astro.props;
+---
+
+<header class="reveal" data-reveal-blur>
+  <p class="font-mono text-2xs tracking-[0.14em] text-ink-soft">
+    <span class="select-none" aria-hidden="true">{'// '}</span>{kicker}
+  </p>
+
+  <h2 id={id} class="mt-2 text-title text-ink-strong">{title}</h2>
+
+  <div class="mt-4 h-px bg-rule" aria-hidden="true"></div>
+</header>

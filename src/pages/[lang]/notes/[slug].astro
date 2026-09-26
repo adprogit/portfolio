@@ -1,0 +1,27 @@
+---
+/** Notes des langues secondaires : /fr/notes/<slug>/, /de/notes/<slug>/ */
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import NoteBody from '../../../components/NoteBody.astro';
+import { noteRoutes, type ResolvedNote } from '../../../data/notes';
+import { defaultLocale, type Locale } from '../../../i18n/config';
+
+export function getStaticPaths() {
+  return noteRoutes
+    .filter((route) => route.locale !== defaultLocale)
+    .map((route) => ({
+      params: { lang: route.locale, slug: route.slug },
+      props: { note: route.note, lang: route.locale },
+    }));
+}
+
+const { note, lang } = Astro.props as { note: ResolvedNote; lang: Locale };
+---
+
+<BaseLayout
+  lang={lang}
+  back
+  title={`${note.title} ${note.titleAccent} · ${note.kicker}`}
+  description={note.description}
+>
+  <NoteBody note={note} lang={lang} />
+</BaseLayout>

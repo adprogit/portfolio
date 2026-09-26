@@ -1,0 +1,348 @@
+/**
+ * Libellés d’interface. Toute chaîne visible passe par ici : les trois objets
+ * ont exactement les mêmes clés (TypeScript le vérifie via `Dict`).
+ *
+ * Usage :  const t = useT(lang);  t('home.projects')  t('home.count', { n: 6 })
+ */
+
+import type { Locale } from './config';
+
+const en = {
+  'a11y.skip': 'Skip to content',
+  'a11y.theme': 'Switch between light and dark theme',
+  'a11y.lang': 'Language',
+  'a11y.tech': 'Technologies used',
+  'a11y.enlarge': 'Enlarge: {caption}',
+
+  'nav.back': 'Back home',
+
+  'home.projects': 'Projects',
+  'home.projects.kicker': 'selected work',
+  'home.skills': 'Skills',
+  'home.scroll': 'Scroll',
+  'home.count': '{n} projects',
+
+  'cat.rendering': 'Rendering & GPU',
+  'cat.vision': 'Vision & imaging',
+  'cat.systems': 'Languages & systems',
+
+  'tag.rendering': 'Rendering',
+  'tag.gpu': 'GPU',
+  'tag.imaging': 'Image processing',
+  'tag.vision': 'Computer vision',
+  'tag.deep-learning': 'Deep learning',
+  'tag.machine-learning': 'Machine learning',
+  'tag.systems': 'Systems & compilers',
+  'tag.optimization': 'Optimisation',
+
+  'figure.label': 'fig. {n}',
+
+  'home.notes': 'Notes',
+  'home.notes.kicker': 'course notes',
+  'note.draft': 'Draft',
+  'placeholder.figure': 'Figure to come',
+  'note.minutes': '{n} min read',
+  'note.course': 'The course',
+  'code.course': 'written for this course',
+
+  'diagram.camera': 'camera',
+  'diagram.imagePlane': 'image plane',
+  'diagram.miss': 'miss',
+  'diagram.tangent': 'grazes',
+  'diagram.hit': 'enters, exits',
+  'diagram.eye': 'eye',
+  'diagram.steps': 'steps',
+  'diagram.light': 'light',
+  'diagram.occluder': 'occluder',
+  'diagram.shadow': 'shadow',
+  'diagram.penumbra': 'penumbra',
+  'diagram.received': 'light received',
+  'diagram.stop': 'stop',
+
+  'plot.iterations': 'iterations',
+  'plot.meanIterations': 'mean iterations',
+  'plot.successRate': 'success rate',
+  'plot.kappa': 'conditioning κ',
+  'plot.dimension': 'dimension n',
+  'plot.k': 'iteration k',
+  'plot.evaluations': 'evaluations of f',
+  'plot.tau': 'τ (shrink factor)',
+  'diagram.frprKappa.alt': 'Iterations of FR and PR against the conditioning, for dimensions 5, 25 and 75, with an exact step; FR and PR overlap.',
+  'diagram.frprBatch.alt': 'Two bar charts comparing FR and PR on six non-convex functions: success rate, and mean iterations of the successful runs.',
+  'diagram.frprRosenbrock.alt': 'Median, mean and maximum iterations of FR and PR on the Rosenbrock function over 100 starts.',
+  'diagram.frprAnim.alt': 'Two animated paths on the Rosenbrock function from the same start: Fletcher–Reeves on the left, Polak–Ribière on the right, appearing one iteration at a time.',
+  'diagram.benchTrajectories.alt': 'Paths of Newton, conjugate gradient and BFGS on two quadratics and on the Rosenbrock function.',
+  'diagram.benchKappa.alt': 'Log-log plot of iterations against conditioning in dimension 30 for Newton, conjugate gradient, BFGS and gradient descent.',
+  'diagram.benchDimension.alt': 'Log-log plot of conjugate-gradient iterations against the dimension, with the line y = n.',
+  'diagram.benchRate.alt': 'Distance to the minimum and ratio of successive distances, per iteration, for FR, PR and BFGS on the Rosenbrock function.',
+  'diagram.benchLineSearch.alt': 'Two grids of Armijo settings for BFGS on Rosenbrock, with the number of iterations and of function evaluations written in each cell.',
+  'diagram.pinhole.alt': 'A pinhole camera: rays leave a single centre, cross the image plane through each pixel, and one of them hits a sphere.',
+  'diagram.raySphere.alt': 'Three parallel rays against a sphere: one passes above it, one grazes it at a single point, one enters and exits at two points.',
+  'diagram.sphereTracing.alt': 'Sphere tracing: along a ray, a series of circles, each as large as the distance to the nearest shape, shrinking as the ray approaches the surface it finally hits.',
+  'diagram.finiteNormal.alt': 'A circle with its distance level lines; two probes a small step away along x and y give the normal arrow, perpendicular to the surface.',
+  'diagram.lambert.alt': 'The same light beam on two surfaces: facing it, it covers a width A; tilted by 60 degrees, it spreads over 2A.',
+  'diagram.blinnLobes.alt': 'Light, view and half vector above a surface, with three specular lobes around the half vector that narrow as the exponent grows from 8 to 128.',
+  'diagram.softShadow.alt': 'A light, a round occluder and the ground. From a point in the penumbra, a shadow ray marches towards the light through a series of circles, one of them highlighted. Below the ground, two bands show the light received at each point, for two values of k: one switches almost at once from shadow to light, the other brightens gradually.',
+  'diagram.mirror.alt': 'A ray reflects off the ground, then off a sphere, and stops when its depth budget reaches zero.',
+
+  'project.contents': 'Contents',
+
+  'filter.label': 'Filter by tag',
+  'filter.open': 'Filter',
+  'filter.all': 'Everything',
+  'filter.langs': 'Languages',
+  'filter.fields': 'Fields',
+  'filter.empty': 'No project carries this tag.',
+  'project.source': 'Source code',
+  'project.wip': 'In progress',
+  'project.private': 'Private repo — code on request',
+
+  'lightbox.label': 'Image gallery',
+  'lightbox.close': 'Close gallery',
+  'lightbox.prev': 'Previous image',
+  'lightbox.next': 'Next image',
+
+  'chess.live': 'live',
+  'chess.canvas': 'Live render: a chess position ray marched in the browser, from the same distance fields and the same lighting as the C++ project.',
+  'chess.caption': 'Every position is ray marched from scratch. Stepping through a move rewrites two buffers — the 32 pieces and the 64 grid cells — and asks for one more frame.',
+  'chess.loading': 'Loading the renderer…',
+  'chess.unsupported': 'This render needs WebGPU, which this browser does not offer. The rest of the page does not depend on it.',
+  'chess.prev': 'Previous move',
+  'chess.next': 'Next move',
+  'chess.reset': 'Restart',
+  'chess.start': 'Starting position',
+
+  'footer.built': 'Built with Astro, Tailwind & WebGPU',
+} as const;
+
+type Dict = Record<keyof typeof en, string>;
+
+const fr: Dict = {
+  'a11y.skip': 'Aller au contenu',
+  'a11y.theme': 'Basculer entre le thème clair et sombre',
+  'a11y.lang': 'Langue',
+  'a11y.tech': 'Technologies utilisées',
+  'a11y.enlarge': 'Agrandir : {caption}',
+
+  'nav.back': "Retour à l’accueil",
+
+  'home.projects': 'Projets',
+  'home.projects.kicker': 'travaux choisis',
+  'home.skills': 'Compétences',
+  'home.scroll': 'Défiler',
+  'home.count': '{n} projets',
+
+  'cat.rendering': 'Rendu & GPU',
+  'cat.vision': 'Vision & imagerie',
+  'cat.systems': 'Langages & systèmes',
+
+  'tag.rendering': 'Rendu',
+  'tag.gpu': 'GPU',
+  'tag.imaging': 'Traitement d’images',
+  'tag.vision': 'Vision par ordinateur',
+  'tag.deep-learning': 'Apprentissage profond',
+  'tag.machine-learning': 'Apprentissage automatique',
+  'tag.systems': 'Systèmes & compilation',
+  'tag.optimization': 'Optimisation',
+
+  'figure.label': 'fig. {n}',
+
+  'home.notes': 'Notes',
+  'home.notes.kicker': 'notes de cours',
+  'note.draft': 'Brouillon',
+  'placeholder.figure': 'Figure à venir',
+  'note.minutes': '{n} min de lecture',
+  'note.course': 'Le cours',
+  'code.course': 'écrit pour ce cours',
+
+  'diagram.camera': 'caméra',
+  'diagram.imagePlane': 'plan image',
+  'diagram.miss': 'raté',
+  'diagram.tangent': 'frôle',
+  'diagram.hit': 'entre, ressort',
+  'diagram.eye': 'œil',
+  'diagram.steps': 'pas',
+  'diagram.light': 'lumière',
+  'diagram.occluder': 'obstacle',
+  'diagram.shadow': 'ombre',
+  'diagram.penumbra': 'pénombre',
+  'diagram.received': 'lumière reçue',
+  'diagram.stop': 'arrêt',
+
+  'plot.iterations': 'itérations',
+  'plot.meanIterations': 'itérations moyennes',
+  'plot.successRate': 'taux de réussite',
+  'plot.kappa': 'conditionnement κ',
+  'plot.dimension': 'dimension n',
+  'plot.k': 'itération k',
+  'plot.evaluations': 'évaluations de f',
+  'plot.tau': 'τ (rétrécissement)',
+  'diagram.frprKappa.alt': 'Itérations de FR et PR en fonction du conditionnement, en dimension 5, 25 et 75, à pas exact ; FR et PR se superposent.',
+  'diagram.frprBatch.alt': 'Deux diagrammes en barres comparant FR et PR sur six fonctions non convexes : taux de réussite, et itérations moyennes des runs réussis.',
+  'diagram.frprRosenbrock.alt': 'Itérations médiane, moyenne et maximale de FR et PR sur la fonction de Rosenbrock, sur 100 départs.',
+  'diagram.frprAnim.alt': 'Deux chemins animés sur la fonction de Rosenbrock depuis le même départ : Fletcher-Reeves à gauche, Polak-Ribière à droite, qui apparaissent une itération à la fois.',
+  'diagram.benchTrajectories.alt': 'Chemins de Newton, du gradient conjugué et de BFGS sur deux quadratiques et sur la fonction de Rosenbrock.',
+  'diagram.benchKappa.alt': 'Graphe log-log des itérations en fonction du conditionnement en dimension 30, pour Newton, le gradient conjugué, BFGS et la descente de gradient.',
+  'diagram.benchDimension.alt': 'Graphe log-log des itérations du gradient conjugué en fonction de la dimension, avec la droite y = n.',
+  'diagram.benchRate.alt': 'Distance au minimum et rapport des distances successives, par itération, pour FR, PR et BFGS sur la fonction de Rosenbrock.',
+  'diagram.benchLineSearch.alt': 'Deux grilles de réglages d’Armijo pour BFGS sur Rosenbrock, avec le nombre d’itérations et d’évaluations de la fonction écrit dans chaque case.',
+  'diagram.pinhole.alt': 'Une caméra sténopé : des rayons partent d’un centre unique, traversent le plan image par chaque pixel, et l’un d’eux touche une sphère.',
+  'diagram.raySphere.alt': 'Trois rayons parallèles face à une sphère : l’un passe au-dessus, l’un la frôle en un seul point, l’un y entre et en ressort en deux points.',
+  'diagram.sphereTracing.alt': 'Sphere tracing : le long d’un rayon, une suite de cercles aussi grands que la distance à la forme la plus proche, qui rétrécissent à l’approche de la surface finalement touchée.',
+  'diagram.finiteNormal.alt': 'Un cercle et ses lignes de niveau de distance ; deux sondes à un petit pas en x et en y donnent la flèche de la normale, perpendiculaire à la surface.',
+  'diagram.lambert.alt': 'Le même faisceau de lumière sur deux surfaces : de face, il couvre une largeur A ; inclinée de 60 degrés, il s’étale sur 2A.',
+  'diagram.blinnLobes.alt': 'Lumière, vue et demi-vecteur au-dessus d’une surface, avec trois lobes spéculaires autour du demi-vecteur qui se resserrent quand l’exposant passe de 8 à 128.',
+  'diagram.softShadow.alt': 'Une lumière, un obstacle rond et le sol. Depuis un point de la pénombre, un rayon d’ombre marche vers la lumière par une suite de cercles, dont un est mis en avant. Sous le sol, deux bandes montrent la lumière reçue en chaque point, pour deux valeurs de k : l’une passe presque d’un coup de l’ombre à la lumière, l’autre s’éclaire progressivement.',
+  'diagram.mirror.alt': 'Un rayon se réfléchit sur le sol, puis sur une sphère, et s’arrête quand son budget de profondeur tombe à zéro.',
+
+  'project.contents': 'Au programme',
+
+  'filter.label': 'Filtrer par tag',
+  'filter.open': 'Filtrer',
+  'filter.all': 'Tout',
+  'filter.langs': 'Langages',
+  'filter.fields': 'Domaines',
+  'filter.empty': 'Aucun projet ne porte ce tag.',
+  'project.source': 'Code source',
+  'project.wip': 'En cours',
+  'project.private': 'Dépôt privé — code sur demande',
+
+  'lightbox.label': 'Galerie de visuels',
+  'lightbox.close': 'Fermer la galerie',
+  'lightbox.prev': 'Visuel précédent',
+  'lightbox.next': 'Visuel suivant',
+
+  'chess.live': 'en direct',
+  'chess.canvas': "Rendu en direct : une position d’échecs calculée par ray marching dans le navigateur, à partir des mêmes champs de distance et du même éclairage que le projet C++.",
+  'chess.caption': "Chaque position est ray marchée depuis zéro. Avancer d’un coup réécrit deux tampons — les 32 pièces et les 64 cases de la grille — et redemande une image.",
+  'chess.loading': 'Chargement du rendu…',
+  'chess.unsupported': "Ce rendu demande WebGPU, que ce navigateur ne propose pas. Le reste de la page n’en dépend pas.",
+  'chess.prev': 'Coup précédent',
+  'chess.next': 'Coup suivant',
+  'chess.reset': 'Reprendre',
+  'chess.start': 'Position de départ',
+
+  'footer.built': 'Fait avec Astro, Tailwind & WebGPU',
+};
+
+const de: Dict = {
+  'a11y.skip': 'Zum Inhalt springen',
+  'a11y.theme': 'Zwischen hellem und dunklem Thema wechseln',
+  'a11y.lang': 'Sprache',
+  'a11y.tech': 'Verwendete Technologien',
+  'a11y.enlarge': 'Vergrößern: {caption}',
+
+  'nav.back': 'Zurück zur Startseite',
+
+  'home.projects': 'Projekte',
+  'home.projects.kicker': 'ausgewählte Arbeiten',
+  'home.skills': 'Fähigkeiten',
+  'home.scroll': 'Scrollen',
+  'home.count': '{n} Projekte',
+
+  'cat.rendering': 'Rendering & GPU',
+  'cat.vision': 'Bildverarbeitung',
+  'cat.systems': 'Sprachen & Systeme',
+
+  'tag.rendering': 'Rendering',
+  'tag.gpu': 'GPU',
+  'tag.imaging': 'Bildverarbeitung',
+  'tag.vision': 'Computer Vision',
+  'tag.deep-learning': 'Deep Learning',
+  'tag.machine-learning': 'Machine Learning',
+  'tag.systems': 'Systeme & Compilerbau',
+  'tag.optimization': 'Optimierung',
+
+  'figure.label': 'Abb. {n}',
+
+  'home.notes': 'Notizen',
+  'home.notes.kicker': 'Kursnotizen',
+  'note.draft': 'Entwurf',
+  'placeholder.figure': 'Abbildung folgt',
+  'note.minutes': '{n} Min. Lesezeit',
+  'note.course': 'Der Kurs',
+  'code.course': 'für diesen Kurs geschrieben',
+
+  'diagram.camera': 'Kamera',
+  'diagram.imagePlane': 'Bildebene',
+  'diagram.miss': 'verfehlt',
+  'diagram.tangent': 'streift',
+  'diagram.hit': 'tritt ein, tritt aus',
+  'diagram.eye': 'Auge',
+  'diagram.steps': 'Schritte',
+  'diagram.light': 'Licht',
+  'diagram.occluder': 'Hindernis',
+  'diagram.shadow': 'Schatten',
+  'diagram.penumbra': 'Halbschatten',
+  'diagram.received': 'empfangenes Licht',
+  'diagram.stop': 'Ende',
+
+  'plot.iterations': 'Iterationen',
+  'plot.meanIterations': 'mittlere Iterationen',
+  'plot.successRate': 'Erfolgsquote',
+  'plot.kappa': 'Konditionierung κ',
+  'plot.dimension': 'Dimension n',
+  'plot.k': 'Iteration k',
+  'plot.evaluations': 'Auswertungen von f',
+  'plot.tau': 'τ (Verkleinerung)',
+  'diagram.frprKappa.alt': 'Iterationen von FR und PR über der Konditionierung, in Dimension 5, 25 und 75, mit exakter Schrittweite; FR und PR liegen übereinander.',
+  'diagram.frprBatch.alt': 'Zwei Balkendiagramme, die FR und PR auf sechs nichtkonvexen Funktionen vergleichen: Erfolgsquote und mittlere Iterationen der erfolgreichen Läufe.',
+  'diagram.frprRosenbrock.alt': 'Median, Mittelwert und Maximum der Iterationen von FR und PR auf der Rosenbrock-Funktion über 100 Starts.',
+  'diagram.frprAnim.alt': 'Zwei animierte Wege auf der Rosenbrock-Funktion vom selben Start: Fletcher–Reeves links, Polak–Ribière rechts, die Iteration für Iteration erscheinen.',
+  'diagram.benchTrajectories.alt': 'Wege von Newton, konjugierten Gradienten und BFGS auf zwei Quadriken und auf der Rosenbrock-Funktion.',
+  'diagram.benchKappa.alt': 'Log-Log-Diagramm der Iterationen über der Konditionierung in Dimension 30 für Newton, konjugierte Gradienten, BFGS und Gradientenabstieg.',
+  'diagram.benchDimension.alt': 'Log-Log-Diagramm der Iterationen konjugierter Gradienten über der Dimension, mit der Geraden y = n.',
+  'diagram.benchRate.alt': 'Abstand zum Minimum und Verhältnis aufeinanderfolgender Abstände je Iteration, für FR, PR und BFGS auf der Rosenbrock-Funktion.',
+  'diagram.benchLineSearch.alt': 'Zwei Raster von Armijo-Einstellungen für BFGS auf Rosenbrock, mit der Zahl der Iterationen und der Funktionsauswertungen in jedem Feld.',
+  'diagram.pinhole.alt': 'Eine Lochkamera: Strahlen verlassen ein einziges Zentrum, durchqueren die Bildebene durch jedes Pixel, und einer trifft eine Kugel.',
+  'diagram.raySphere.alt': 'Drei parallele Strahlen vor einer Kugel: einer verläuft darüber, einer streift sie in einem Punkt, einer tritt in zwei Punkten ein und aus.',
+  'diagram.sphereTracing.alt': 'Sphere Tracing: entlang eines Strahls eine Folge von Kreisen, jeder so groß wie der Abstand zur nächsten Form, die schrumpfen, je näher der Strahl der Fläche kommt, die er schließlich trifft.',
+  'diagram.finiteNormal.alt': 'Ein Kreis mit seinen Abstands-Höhenlinien; zwei Sonden in kleinem Abstand entlang x und y ergeben den Normalenpfeil, senkrecht zur Fläche.',
+  'diagram.lambert.alt': 'Derselbe Lichtstrahl auf zwei Flächen: frontal deckt er eine Breite A ab; um 60 Grad geneigt, verteilt er sich auf 2A.',
+  'diagram.blinnLobes.alt': 'Licht-, Blick- und Halbvektor über einer Fläche, mit drei spekularen Keulen um den Halbvektor, die schmaler werden, wenn der Exponent von 8 auf 128 steigt.',
+  'diagram.softShadow.alt': 'Ein Licht, ein rundes Hindernis und der Boden. Von einem Punkt im Halbschatten läuft ein Schattenstrahl über eine Folge von Kreisen zum Licht, einer davon hervorgehoben. Unter dem Boden zeigen zwei Bänder das an jedem Punkt empfangene Licht für zwei Werte von k: das eine wechselt fast schlagartig von Schatten zu Licht, das andere hellt sich allmählich auf.',
+  'diagram.mirror.alt': 'Ein Strahl wird am Boden, dann an einer Kugel reflektiert und endet, wenn sein Tiefenbudget null erreicht.',
+
+  'project.contents': 'Inhalt',
+
+  'filter.label': 'Nach Tag filtern',
+  'filter.open': 'Filtern',
+  'filter.all': 'Alles',
+  'filter.langs': 'Sprachen',
+  'filter.fields': 'Bereiche',
+  'filter.empty': 'Kein Projekt trägt diesen Tag.',
+  'project.source': 'Quellcode',
+  'project.wip': 'In Arbeit',
+  'project.private': 'Privates Repository — Code auf Anfrage',
+
+  'lightbox.label': 'Bildergalerie',
+  'lightbox.close': 'Galerie schließen',
+  'lightbox.prev': 'Vorheriges Bild',
+  'lightbox.next': 'Nächstes Bild',
+
+  'chess.live': 'live',
+  'chess.canvas': 'Live-Rendering: eine Schachstellung, im Browser per Ray Marching berechnet — aus denselben Distanzfeldern und derselben Beleuchtung wie im C++-Projekt.',
+  'chess.caption': 'Jede Stellung wird von Grund auf ray-marched. Ein Zug weiter schreibt zwei Puffer neu — die 32 Figuren und die 64 Rasterfelder — und fordert ein weiteres Bild an.',
+  'chess.loading': 'Renderer wird geladen…',
+  'chess.unsupported': 'Dieses Rendering braucht WebGPU, das dieser Browser nicht anbietet. Der Rest der Seite hängt nicht davon ab.',
+  'chess.prev': 'Vorheriger Zug',
+  'chess.next': 'Nächster Zug',
+  'chess.reset': 'Neu beginnen',
+  'chess.start': 'Grundstellung',
+
+  'footer.built': 'Gebaut mit Astro, Tailwind & WebGPU',
+};
+
+export const ui: Record<Locale, Dict> = { en, fr, de };
+
+export type UIKey = keyof Dict;
+
+/** Remplace les `{jetons}` par les valeurs passées. */
+export function useT(locale: Locale) {
+  const dict = ui[locale];
+  return (key: UIKey, vars?: Record<string, string | number>): string => {
+    const value = dict[key];
+    if (!vars) return value;
+    return value.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
+  };
+}

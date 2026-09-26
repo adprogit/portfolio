@@ -1,0 +1,36 @@
+---
+/** FR et PR sur quadratiques à pas exact : itérations en fonction de κ, pour n = 5, 25, 75. */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import { frprKappa } from '../../lib/optim';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+const data = frprKappa();
+const series = data.flatMap(({ n, points }) => [
+  { key: `n${n}`, points: points.map((p) => [p.kappa, p.fr] as [number, number]), marker: 'dot' as const },
+  { key: `n${n}`, points: points.map((p) => [p.kappa, p.pr] as [number, number]), marker: 'cross' as const },
+]);
+const guides = data.map(({ n }) => [[8, n], [1300, n]] as [number, number][]);
+---
+
+<Legend
+  entries={[
+    ...data.map(({ n }) => ({ key: `n${n}`, label: `n = ${n}` })),
+    { key: 'gd', label: 'FR' },
+    { key: 'gd', label: 'PR', marker: 'cross' as const },
+    { key: 'gd', label: 'y = n', dash: true },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="frpr-kappa"
+    alt={t('diagram.frprKappa.alt')}
+    x={{ domain: [8, 1300], log: true, label: t('plot.kappa') }}
+    y={{ domain: [0, 150], label: t('plot.iterations') }}
+    series={series}
+    guides={guides}
+  />
+</div>
