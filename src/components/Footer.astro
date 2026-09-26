@@ -16,14 +16,13 @@ interface Props {
 const { lang } = Astro.props;
 const t = useT(lang);
 const me = profile[lang];
-const year = new Date().getFullYear();
 ---
 
 <footer class="border-t border-rule">
   <div
     class="shell flex flex-col gap-2 px-5 py-7 font-mono text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between sm:px-8"
   >
-    <p>{me.role} · {year}</p>
+    <p>{me.role}</p>
 
     <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
       {

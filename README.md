@@ -57,8 +57,8 @@ les mêmes clés, TypeScript le vérifie. L'anglais n'a pas de préfixe d'URL
    tableau, il n'y a aucun tri.
 
 Blocs disponibles dans une section : `text`, `list`, `code`, `media`, `video`,
-`chart`, `live` (l'échiquier). Pas de dates affichées ; un projet en cours porte
-`status: 'wip'`.
+`chart`, `live` (l'échiquier). Aucune année, nulle part ; un projet en cours
+porte `status: 'wip'`.
 
 Un tag s'ajoute dans `tagGroups`, avec sa traduction `tag.<nom>` dans `ui.ts`
 s'il s'agit d'un domaine. Le filtre de l'accueil ne propose que les tags portés
@@ -147,6 +147,5 @@ pas : ne pas les publier tels quels.
 ## Reste à faire
 
 - Vérifier l'échiquier dans un navigateur avec WebGPU.
-- Corriger les `TODO` d'années dans `src/data/projects.ts`.
 - Réencoder la vidéo (2,4 Mo pour 3 s) si ffmpeg est disponible :
   `ffmpeg -i detection.mp4 -an -c:v libvpx-vp9 -crf 34 -b:v 0 detection.webm`.

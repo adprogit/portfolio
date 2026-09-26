@@ -859,7 +859,6 @@ interface ProjectDef {
   slug: string;
   /** Non traduit — même titre dans les trois langues. */
   title: string;
-  year: string;
   category: Category;
   tone: Tone;
   /**
@@ -915,7 +914,6 @@ const raymarcher: ProjectDef = {
   slug: 'raymarcher',
   category: 'rendering',
   title: 'Chess Ray Marcher',
-  year: '2025',
   tone: 'pink',
   tech: ['C++20', 'CMake', 'OpenMP', 'Ray Marching', 'SDF'],
   tags: ['cpp', 'rendering'],
@@ -1314,8 +1312,6 @@ const cudaMotion: ProjectDef = {
   slug: 'cuda-motion',
   category: 'rendering',
   title: 'CUDA Motion Filter',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'green',
   tech: ['CUDA', 'C++17', 'GStreamer', 'CMake', 'Nsight'],
   tags: ['cpp', 'gpu', 'imaging'],
@@ -1679,8 +1675,6 @@ const automata: ProjectDef = {
   slug: 'automata-vision',
   category: 'vision',
   title: 'Automata Vision',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'green',
   tech: ['Python', 'NumPy', 'OpenCV', 'C++17', 'CMake'],
   tags: ['python', 'cpp', 'imaging', 'vision'],
@@ -2080,7 +2074,6 @@ const toongl: ProjectDef = {
   slug: 'toongl',
   category: 'rendering',
   title: 'ToonGL',
-  year: '2026',
   tone: 'cyan',
   tech: ['C++20', 'OpenGL 4.1', 'GLSL', 'CMake', 'Dear ImGui'],
   tags: ['cpp', 'gpu', 'rendering'],
@@ -2391,7 +2384,6 @@ const pulmonix: ProjectDef = {
   slug: 'pulmonix',
   category: 'vision',
   title: 'Pulmonix',
-  year: '2026',
   tone: 'yellow',
   tech: ['Python', 'FastAPI', 'Dash', 'PostgreSQL', 'Docker', 'XGBoost', 'VTK'],
   tags: ['python', 'imaging', 'machine-learning'],
@@ -2797,7 +2789,6 @@ const unet: ProjectDef = {
   slug: 'unet-coco',
   category: 'vision',
   title: 'U-Net from Scratch',
-  year: '2026',
   tone: 'pink',
   tech: ['Python', 'PyTorch', 'U-Net', 'COCO'],
   tags: ['python', 'deep-learning', 'vision'],
@@ -3197,9 +3188,6 @@ const sudoku: ProjectDef = {
   slug: 'raiders-sudoku',
   category: 'vision',
   title: 'Raiders Sudoku',
-  // TODO: corrige l’année si besoin — datée des soutenances de novembre et
-  // décembre 2023 annoncées par le projet lui-même.
-  year: '2023',
   tone: 'orange',
   tech: ['C99', 'GTK 3', 'SDL2', 'Hough', 'MLP', 'MNIST'],
   tags: ['c', 'imaging', 'vision', 'machine-learning'],
@@ -3749,7 +3737,6 @@ const sh42: ProjectDef = {
   slug: '42sh',
   category: 'systems',
   title: '42sh',
-  year: '2024',
   tone: 'cyan',
   tech: ['C99', 'POSIX', 'Autotools'],
   tags: ['c', 'systems'],
@@ -3992,8 +3979,6 @@ const tiger: ProjectDef = {
   slug: 'tiger',
   category: 'systems',
   title: 'Tiger',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'pink',
   tech: ['C++', 'Compilation', 'AST'],
   tags: ['cpp', 'systems'],
@@ -4285,7 +4270,6 @@ const neuralTexture: ProjectDef = {
   slug: 'neural-texture',
   category: 'rendering',
   title: 'Neural Texture Compression',
-  year: '2026',
   tone: 'purple',
   status: 'wip',
   tech: ['PyTorch', 'WebGPU', 'WGSL', 'Python', 'NumPy'],
@@ -4750,7 +4734,6 @@ export interface ResolvedSection {
 export interface ResolvedProject {
   slug: string;
   title: string;
-  year: string;
   category: Category;
   tone: Tone;
   status?: 'wip';
@@ -4837,7 +4820,6 @@ function resolveProject(def: ProjectDef, locale: Locale): ResolvedProject {
   return {
     slug: def.slug,
     title: def.title,
-    year: def.year,
     category: def.category,
     tone: def.tone,
     status: def.status,

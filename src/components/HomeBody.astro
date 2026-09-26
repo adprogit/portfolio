@@ -37,10 +37,6 @@ const me = profile[lang];
 const projects = getProjects(lang);
 const groups = getProjectGroups(projects);
 const notes = getNotes(lang);
-
-// Période couverte par les projets, lue dans les données plutôt qu'écrite.
-const years = [...new Set(projects.map((project) => project.year))].sort();
-const span = years.length > 1 ? `${years[0]}–${years.at(-1)}` : years[0];
 ---
 
 {/* ── Premier écran : la bio, et rien d'autre ──────────────────── */}
@@ -111,7 +107,7 @@ const span = years.length > 1 ? `${years[0]}–${years.at(-1)}` : years[0];
           l'invite de défilement juste en dessous aussi. Il ne reste que ce que
           ces deux-là ne disent pas — combien, et sur quelle période. */}
       <p class="reveal mt-3 font-mono text-xs tabular-nums text-ink-soft">
-        {t('home.count', { n: projects.length })} · {span}
+        {t('home.count', { n: projects.length })}
       </p>
 
       {/* Le seul endroit d'où l'on peut répondre. Un site qui annonce chercher
