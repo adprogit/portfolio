@@ -59,7 +59,7 @@ const strips = [
 
   {/* Le rayon d'ombre et sa marche, coupée au sol : sous lui, ce sont les bandes. */}
   <clipPath id="ss-sky"><rect width="640" height={groundY} /></clipPath>
-  <line class="d-rule" x1={probe.x} y1={groundY} x2={light[0]} y2={light[1]} />
+  <line class="d-ray" x1={probe.x} y1={groundY} x2={light[0]} y2={light[1]} />
   {trace.steps.map(({ p, r }, i) => (
     <g class="d-anim" style={`--i: ${i}`}>
       <circle class="d-probe" clip-path="url(#ss-sky)" cx={p[0].toFixed(1)} cy={p[1].toFixed(1)} r={r.toFixed(1)} />
@@ -80,12 +80,12 @@ const strips = [
     </g>
   ))}
 
-  <text class="d-label" x={light[0] - 12} y={light[1] - 10} text-anchor="end">{t('diagram.light')}</text>
+  <text class="d-label-light" x={light[0] - 12} y={light[1] - 10} text-anchor="end">{t('diagram.light')}</text>
   <text class="d-label" x={occluder.c[0] - 8} y={occluder.c[1] - occluder.r - 10} text-anchor="end">
     {t('diagram.occluder')}
   </text>
-  <polyline class="d-line" points={`240,100 248,100 248,${minY.toFixed(1)} ${minEdge.toFixed(1)},${minY.toFixed(1)}`} />
-  <text class="d-label-accent" x="236" y="104" text-anchor="end">min k · h / t</text>
+  <polyline class="d-probe" points={`240,100 248,100 248,${minY.toFixed(1)} ${minEdge.toFixed(1)},${minY.toFixed(1)}`} />
+  <text class="d-label-probe" x="236" y="104" text-anchor="end">min k · h / t</text>
   <text class="d-label-accent" x={probe.x - 44} y={groundY - 6} text-anchor="end">{t('diagram.penumbra')}</text>
   <text class="d-label" x={x1} y={244} text-anchor="end">{t('diagram.received')}</text>
 </svg>

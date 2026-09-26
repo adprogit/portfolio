@@ -33,22 +33,22 @@ const tip = add(P, scale(n, 86));
   ))}
   <circle class="d-shape" cx={shape.c[0]} cy={shape.c[1]} r={shape.r} />
 
-  <line class="d-line" x1={P[0]} y1={P[1]} x2={px[0]} y2={px[1]} />
-  <line class="d-line" x1={P[0]} y1={P[1]} x2={py[0]} y2={py[1]} />
-  <circle class="d-dot" cx={px[0]} cy={px[1]} r="3" />
-  <circle class="d-dot" cx={py[0]} cy={py[1]} r="3" />
+  <line class="d-probe" x1={P[0]} y1={P[1]} x2={px[0]} y2={px[1]} />
+  <line class="d-probe" x1={P[0]} y1={P[1]} x2={py[0]} y2={py[1]} />
+  <circle class="d-dot-probe" cx={px[0]} cy={px[1]} r="3" />
+  <circle class="d-dot-probe" cx={py[0]} cy={py[1]} r="3" />
 
-  <line class="d-ray" x1={P[0]} y1={P[1]} x2={tip[0]} y2={tip[1]} />
-  <polygon class="d-head-accent" points={arrowHead(P, tip)} />
+  <line class="d-normal" x1={P[0]} y1={P[1]} x2={tip[0]} y2={tip[1]} />
+  <polygon class="d-head-normal" points={arrowHead(P, tip)} />
   <circle class="d-dot-accent" cx={P[0]} cy={P[1]} r="3.5" />
 
-  <text class="d-label" x={px[0] + 6} y={px[1] + 4}>ε</text>
-  <text class="d-label d-bare" x={P[0] + 6} y={(P[1] + py[1]) / 2 + 4}>ε</text>
-  <text class="d-label-accent" x={tip[0] + 8} y={tip[1]}>n</text>
+  <text class="d-label-probe" x={px[0] + 6} y={px[1] + 4}>ε</text>
+  <text class="d-label-probe d-bare" x={P[0] + 6} y={(P[1] + py[1]) / 2 + 4}>ε</text>
+  <text class="d-label-normal" x={tip[0] + 8} y={tip[1]}>n</text>
   <text class="d-label d-bare" x={shape.c[0] - 18} y={shape.c[1] + 4}>d &lt; 0</text>
   <text class="d-label" x={shape.c[0] + shape.r + 70} y={shape.c[1] + 60}>d = 66</text>
 
-  <text class="d-label" x="430" y="96">n ≈ normalize(</text>
+  <text class="d-label" x="430" y="96"><tspan class="d-label-normal">n</tspan> ≈ normalize(</text>
   <text class="d-label" x="446" y="118">d(p + εx) − d(p),</text>
   <text class="d-label" x="446" y="140">d(p + εy) − d(p) )</text>
 </svg>

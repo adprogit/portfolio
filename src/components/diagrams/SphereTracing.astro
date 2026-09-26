@@ -54,7 +54,7 @@ if (!hit) throw new Error('SphereTracing : le rayon du schéma ne touche plus ri
   {/* Le premier pas est plus grand que le cadre : les cercles y sont coupés. */}
   <clipPath id="st-frame"><rect width="640" height="260" /></clipPath>
 
-  <line class="d-rule" x1={origin[0]} y1={origin[1]} x2={hit[0]} y2={hit[1]} />
+  <line class="d-ray" x1={origin[0]} y1={origin[1]} x2={hit[0]} y2={hit[1]} />
 
   {steps.map(({ p, r }, i) => (
     <g class="d-anim" style={`--i: ${i}`}>
@@ -68,7 +68,7 @@ if (!hit) throw new Error('SphereTracing : le rayon du schéma ne touche plus ri
   </g>
 
   <text class="d-label" x={origin[0]} y={origin[1] + 24}>{t('diagram.eye')}</text>
-  <text class="d-label-accent" x="40" y="30">
+  <text class="d-label-probe" x="40" y="30">
     {steps.length} {t('diagram.steps')} · ×0.7
   </text>
 </svg>

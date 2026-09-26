@@ -51,13 +51,13 @@ const short = (from: Vec, dir: Vec, k: number) => add(from, scale(dir, k));
   <polygon class="d-head-accent" points={arrowHead(E, P)} />
   <polygon class="d-head-accent" points={arrowHead(P, Q)} />
 
-  <line class="d-line" x1={P[0]} y1={P[1]} x2={short(P, nP, 48)[0]} y2={short(P, nP, 48)[1]} />
-  <line class="d-line" x1={Q[0]} y1={Q[1]} x2={short(Q, nQ, 40)[0]} y2={short(Q, nQ, 40)[1]} />
+  <line class="d-normal" x1={P[0]} y1={P[1]} x2={short(P, nP, 48)[0]} y2={short(P, nP, 48)[1]} />
+  <line class="d-normal" x1={Q[0]} y1={Q[1]} x2={short(Q, nQ, 40)[0]} y2={short(Q, nQ, 40)[1]} />
   <circle class="d-dot-accent" cx={P[0]} cy={P[1]} r="3.5" />
   <circle class="d-dot-accent" cx={Q[0]} cy={Q[1]} r="3.5" />
 
   <text class="d-label" x={E[0]} y={E[1] - 10}>{t('diagram.eye')} · depth = 2</text>
-  <text class="d-label" x={P[0] + 6} y={P[1] - 52}>n</text>
+  <text class="d-label-normal" x={P[0] + 6} y={P[1] - 52}>n</text>
   <text class="d-label" x={(P[0] + Q[0]) / 2 + 8} y={(P[1] + Q[1]) / 2 + 18}>depth = 1</text>
   <text class="d-label" x={R[0] - 4} y={R[1] - 10} text-anchor="end">depth = 0 · {t('diagram.stop')}</text>
   <text class="d-label-accent" x="80" y="244">r = d − 2 (d · n) n</text>

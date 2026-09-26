@@ -41,16 +41,17 @@ const tip = (v: Vec, k: number) => add(P, scale(v, k));
   <line class="d-rule" x1={P[0]} y1={P[1]} x2={tip(R, 190)[0]} y2={tip(R, 190)[1]} />
   <line class="d-light" x1={P[0]} y1={P[1]} x2={tip(L, 160)[0]} y2={tip(L, 160)[1]} />
   <polygon class="d-head-light" points={arrowHead(P, tip(L, 160))} />
-  <line class="d-line" x1={P[0]} y1={P[1]} x2={tip(V, 160)[0]} y2={tip(V, 160)[1]} />
-  <polygon class="d-head" points={arrowHead(P, tip(V, 160))} />
-  <line class="d-rule" x1={P[0]} y1={P[1]} x2={tip(N, 150)[0]} y2={tip(N, 150)[1]} />
+  <line class="d-view" x1={P[0]} y1={P[1]} x2={tip(V, 160)[0]} y2={tip(V, 160)[1]} />
+  <polygon class="d-head-view" points={arrowHead(P, tip(V, 160))} />
+  <line class="d-normal" x1={P[0]} y1={P[1]} x2={tip(N, 150)[0]} y2={tip(N, 150)[1]} />
+  <polygon class="d-head-normal" points={arrowHead(P, tip(N, 150))} />
   <line class="d-ray" x1={P[0]} y1={P[1]} x2={tip(H, 120)[0]} y2={tip(H, 120)[1]} />
   <polygon class="d-head-accent" points={arrowHead(P, tip(H, 120))} />
 
-  <text class="d-label" x={tip(L, 172)[0] - 10} y={tip(L, 172)[1]}>L</text>
-  <text class="d-label" x={tip(V, 172)[0]} y={tip(V, 172)[1]}>V</text>
+  <text class="d-label-light" x={tip(L, 172)[0] - 10} y={tip(L, 172)[1]}>L</text>
+  <text class="d-label-view" x={tip(V, 172)[0]} y={tip(V, 172)[1]}>V</text>
   <text class="d-label" x={tip(R, 200)[0]} y={tip(R, 200)[1] + 4}>R</text>
-  <text class="d-label" x={tip(N, 162)[0] - 4} y={tip(N, 162)[1]}>n</text>
+  <text class="d-label-normal" x={tip(N, 162)[0] - 4} y={tip(N, 162)[1]}>n</text>
   <text class="d-label-accent" x={tip(H, 130)[0] - 14} y={tip(H, 130)[1]}>H</text>
 
   {lobes.map(({ ns, opacity }, i) => (
