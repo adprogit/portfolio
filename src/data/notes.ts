@@ -261,7 +261,8 @@ const optics: NoteDef = {
             {
               type: 'diagram',
               diagram: 'blinnLobes',
-              caption: 'max(n·H, 0)^ns around H, drawn from the formula for ns = 8, 32 and 128.',
+              caption:
+                'max(n·H, 0)^ns seen from each direction, drawn from the formula for ns = 8, 32 and 128. The lobe points to R, the mirror direction of L, where H meets n; the higher ns, the less of it V still catches.',
             },
             {
               type: 'code',
@@ -494,7 +495,8 @@ const optics: NoteDef = {
             {
               type: 'diagram',
               diagram: 'blinnLobes',
-              caption: 'max(n·H, 0)^ns autour de H, tracé depuis la formule pour ns = 8, 32 et 128.',
+              caption:
+                'max(n·H, 0)^ns vu de chaque direction, tracé depuis la formule pour ns = 8, 32 et 128. Le lobe pointe vers R, la direction miroir de L, là où H rejoint n ; plus ns monte, moins V en reçoit.',
             },
             {
               type: 'code',
@@ -727,7 +729,8 @@ const optics: NoteDef = {
             {
               type: 'diagram',
               diagram: 'blinnLobes',
-              caption: 'max(n·H, 0)^ns um H, aus der Formel gezeichnet für ns = 8, 32 und 128.',
+              caption:
+                'max(n·H, 0)^ns aus jeder Richtung gesehen, aus der Formel gezeichnet für ns = 8, 32 und 128. Die Keule zeigt nach R, der Spiegelrichtung von L, wo H auf n trifft; je größer ns, desto weniger davon erreicht V.',
             },
             {
               type: 'code',

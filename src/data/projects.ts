@@ -114,11 +114,11 @@ const datasets = {
     unit: 'dB',
     better: 'high',
     bars: [
-      { label: 'neural, latents 8 bits', value: 42.35 },
-      { label: 'neural, latents 4 bits', value: 38.92 },
-      { label: 'rééchantillonnage, 2,59 bpp', value: 34.2 },
-      { label: 'neural, latents 2 bits', value: 34.28 },
-      { label: 'rééchantillonnage, 1,34 bpp', value: 33.58 },
+      { label: 'neural, 8-bit latents', value: 42.35 },
+      { label: 'neural, 4-bit latents', value: 38.92 },
+      { label: 'resampling, 2.59 bpp', value: 34.2 },
+      { label: 'neural, 2-bit latents', value: 34.28 },
+      { label: 'resampling, 1.34 bpp', value: 33.58 },
     ],
   },
   /** Débit des mêmes réglages. BC7 n'est là que pour son débit fixe. */
@@ -126,10 +126,10 @@ const datasets = {
     unit: 'bpp',
     better: 'low',
     bars: [
-      { label: 'BC7 (débit fixe)', value: 8 },
-      { label: 'neural, latents 8 bits', value: 5.09 },
-      { label: 'neural, latents 4 bits', value: 2.59 },
-      { label: 'neural, latents 2 bits', value: 1.34 },
+      { label: 'BC7 (fixed rate)', value: 8 },
+      { label: 'neural, 8-bit latents', value: 5.09 },
+      { label: 'neural, 4-bit latents', value: 2.59 },
+      { label: 'neural, 2-bit latents', value: 1.34 },
     ],
   },
   /** Rapport OCVX, étude 1 : évaluations de f sur Rosenbrock selon α₀. */
@@ -544,7 +544,7 @@ double mat_get(Matrix* mat, int row, int column) {
             s = x * x + y * y;
         } while (s <= 0 || s >= 1);
 
-        /* Un tirage donne deux valeurs : on remplit par les deux bouts. */
+        /* Un tirage donne deux valeurs : une par moitié du tampon. */
         (result->data)[i] = (x * sqrt((-2.0 * log(s)) / s)) / 2.0;
         if (mid + i < rows * columns) {
             (result->data)[mid + i] = (y * sqrt((-2.0 * log(s)) / s)) / 2.0;
@@ -859,7 +859,6 @@ interface ProjectDef {
   slug: string;
   /** Non traduit — même titre dans les trois langues. */
   title: string;
-  year: string;
   category: Category;
   tone: Tone;
   /**
@@ -915,7 +914,6 @@ const raymarcher: ProjectDef = {
   slug: 'raymarcher',
   category: 'rendering',
   title: 'Chess Ray Marcher',
-  year: '2025',
   tone: 'pink',
   tech: ['C++20', 'CMake', 'OpenMP', 'Ray Marching', 'SDF'],
   tags: ['cpp', 'rendering'],
@@ -1314,8 +1312,6 @@ const cudaMotion: ProjectDef = {
   slug: 'cuda-motion',
   category: 'rendering',
   title: 'CUDA Motion Filter',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'green',
   tech: ['CUDA', 'C++17', 'GStreamer', 'CMake', 'Nsight'],
   tags: ['cpp', 'gpu', 'imaging'],
@@ -1679,8 +1675,6 @@ const automata: ProjectDef = {
   slug: 'automata-vision',
   category: 'vision',
   title: 'Automata Vision',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'green',
   tech: ['Python', 'NumPy', 'OpenCV', 'C++17', 'CMake'],
   tags: ['python', 'cpp', 'imaging', 'vision'],
@@ -2080,7 +2074,6 @@ const toongl: ProjectDef = {
   slug: 'toongl',
   category: 'rendering',
   title: 'ToonGL',
-  year: '2026',
   tone: 'cyan',
   tech: ['C++20', 'OpenGL 4.1', 'GLSL', 'CMake', 'Dear ImGui'],
   tags: ['cpp', 'gpu', 'rendering'],
@@ -2391,7 +2384,6 @@ const pulmonix: ProjectDef = {
   slug: 'pulmonix',
   category: 'vision',
   title: 'Pulmonix',
-  year: '2026',
   tone: 'yellow',
   tech: ['Python', 'FastAPI', 'Dash', 'PostgreSQL', 'Docker', 'XGBoost', 'VTK'],
   tags: ['python', 'imaging', 'machine-learning'],
@@ -2797,7 +2789,6 @@ const unet: ProjectDef = {
   slug: 'unet-coco',
   category: 'vision',
   title: 'U-Net from Scratch',
-  year: '2026',
   tone: 'pink',
   tech: ['Python', 'PyTorch', 'U-Net', 'COCO'],
   tags: ['python', 'deep-learning', 'vision'],
@@ -3197,9 +3188,6 @@ const sudoku: ProjectDef = {
   slug: 'raiders-sudoku',
   category: 'vision',
   title: 'Raiders Sudoku',
-  // TODO: corrige l’année si besoin — datée des soutenances de novembre et
-  // décembre 2023 annoncées par le projet lui-même.
-  year: '2023',
   tone: 'orange',
   tech: ['C99', 'GTK 3', 'SDL2', 'Hough', 'MLP', 'MNIST'],
   tags: ['c', 'imaging', 'vision', 'machine-learning'],
@@ -3353,7 +3341,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'Weight initialization is hand-rolled too. C has no normal distribution, so the weights come out of the Marsaglia polar method: draw in the square until you land in the disc, and one accepted draw yields two normal values — filled in from both ends of the buffer at once.',
+                'Weight initialization is hand-rolled too. C has no normal distribution, so the weights come out of the Marsaglia polar method: draw in the square until you land in the disc, and one accepted draw yields two normal values — one for each half of the buffer.',
             },
             {
               type: 'code',
@@ -3363,7 +3351,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'It is trained on MNIST — 60 000 images, 10 000 held out — with a learning rate of 1 and batches of 100 drawn at random, for 10 000 iterations.',
+                'It is trained on MNIST — 60 000 training images, 10 000 more held out for testing — with a learning rate of 1 and batches of 100 drawn at random, for 10 000 iterations.',
             },
             { type: 'media', shot: 'training' },
             {
@@ -3527,7 +3515,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'L’initialisation des poids est écrite à la main elle aussi. Le C n’a pas de loi normale : les poids sortent de la méthode polaire de Marsaglia — tirer dans le carré jusqu’à tomber dans le disque, un tirage accepté donnant deux valeurs normales, qu’on range par les deux bouts du tampon.',
+                'L’initialisation des poids est écrite à la main elle aussi. Le C n’a pas de loi normale : les poids sortent de la méthode polaire de Marsaglia — tirer dans le carré jusqu’à tomber dans le disque, un tirage accepté donnant deux valeurs normales, une pour chaque moitié du tampon.',
             },
             {
               type: 'code',
@@ -3537,7 +3525,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'Il s’entraîne sur MNIST — 60 000 images, 10 000 gardées de côté — avec un pas de 1 et des lots de 100 tirés au hasard, sur 10 000 itérations.',
+                'Il s’entraîne sur MNIST — 60 000 images d’entraînement, 10 000 autres gardées pour le test — avec un pas de 1 et des lots de 100 tirés au hasard, sur 10 000 itérations.',
             },
             { type: 'media', shot: 'training' },
             {
@@ -3701,7 +3689,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'Auch die Initialisierung der Gewichte ist handgeschrieben. C kennt keine Normalverteilung: die Gewichte stammen aus der Polarmethode von Marsaglia — im Quadrat ziehen, bis man in der Scheibe landet, wobei ein angenommener Zug zwei normalverteilte Werte liefert, die von beiden Enden des Puffers her eingetragen werden.',
+                'Auch die Initialisierung der Gewichte ist handgeschrieben. C kennt keine Normalverteilung: die Gewichte stammen aus der Polarmethode von Marsaglia — im Quadrat ziehen, bis man in der Scheibe landet, wobei ein angenommener Zug zwei normalverteilte Werte liefert, je einen für jede Hälfte des Puffers.',
             },
             {
               type: 'code',
@@ -3711,7 +3699,7 @@ const sudoku: ProjectDef = {
             {
               type: 'text',
               content:
-                'Trainiert wird auf MNIST — 60 000 Bilder, 10 000 zurückgehalten — mit Lernrate 1 und zufällig gezogenen Batches von 100, über 10 000 Iterationen.',
+                'Trainiert wird auf MNIST — 60 000 Trainingsbilder, 10 000 weitere für den Test zurückgehalten — mit Lernrate 1 und zufällig gezogenen Batches von 100, über 10 000 Iterationen.',
             },
             { type: 'media', shot: 'training' },
             {
@@ -3749,7 +3737,6 @@ const sh42: ProjectDef = {
   slug: '42sh',
   category: 'systems',
   title: '42sh',
-  year: '2024',
   tone: 'cyan',
   tech: ['C99', 'POSIX', 'Autotools'],
   tags: ['c', 'systems'],
@@ -3829,7 +3816,7 @@ const sh42: ProjectDef = {
             {
               type: 'text',
               content:
-                'Replayed today, 175 of the 182 pass. The seven that do not are worth naming: `$?` and `$IFS`, two variables concatenated, an assignment used as a command prefix, and the duplicating redirections `>&` and `<&`. They are all expansion, not grammar.',
+                'Replayed today, 175 of the 182 pass. The seven that do not are worth naming: `$?` and `$IFS`, two variables concatenated, an assignment used as a command prefix, and the duplicating redirections `>&` and `<&`. None of them is a grammar failure.',
             },
           ],
         },
@@ -3904,7 +3891,7 @@ const sh42: ProjectDef = {
             {
               type: 'text',
               content:
-                'Rejouée aujourd’hui, la suite passe 175 cas sur 182. Les sept autres méritent d’être nommés : `$?` et `$IFS`, deux variables collées, une affectation utilisée comme préfixe de commande, et les redirections dupliquantes `>&` et `<&`. Tous relèvent de l’expansion, pas de la grammaire.',
+                'Rejouée aujourd’hui, la suite passe 175 cas sur 182. Les sept autres méritent d’être nommés : `$?` et `$IFS`, deux variables collées, une affectation utilisée comme préfixe de commande, et les redirections dupliquantes `>&` et `<&`. Aucun n’est un échec de la grammaire.',
             },
           ],
         },
@@ -3979,7 +3966,7 @@ const sh42: ProjectDef = {
             {
               type: 'text',
               content:
-                'Heute erneut ausgeführt, bestehen 175 der 182 Fälle. Die sieben anderen seien genannt: `$?` und `$IFS`, zwei aneinandergehängte Variablen, eine Zuweisung als Befehlspräfix, sowie die duplizierenden Umleitungen `>&` und `<&`. Alle betreffen die Expansion, nicht die Grammatik.',
+                'Heute erneut ausgeführt, bestehen 175 der 182 Fälle. Die sieben anderen seien genannt: `$?` und `$IFS`, zwei aneinandergehängte Variablen, eine Zuweisung als Befehlspräfix, sowie die duplizierenden Umleitungen `>&` und `<&`. Keiner davon ist ein Grammatikfehler.',
             },
           ],
         },
@@ -3992,8 +3979,6 @@ const tiger: ProjectDef = {
   slug: 'tiger',
   category: 'systems',
   title: 'Tiger',
-  // TODO: corrige l’année si besoin.
-  year: '2025',
   tone: 'pink',
   tech: ['C++', 'Compilation', 'AST'],
   tags: ['cpp', 'systems'],
@@ -4072,7 +4057,7 @@ const tiger: ProjectDef = {
             {
               type: 'text',
               content:
-                'Escape analysis asks which variables cannot live in a register: those a nested function reads, or those whose address outlives the call. Being wrong is expensive in both directions — too strict and everything spills to memory, too loose and a variable is read after its frame is gone.',
+                'Escape analysis asks which variables cannot live in a register: those a nested function reads or writes, since it reaches them through the enclosing frame. Being wrong is expensive in both directions — too strict and everything spills to memory, too loose and the nested function reads a slot in the frame that the variable, kept in a register, never reached.',
             },
           ],
         },
@@ -4164,7 +4149,7 @@ const tiger: ProjectDef = {
             {
               type: 'text',
               content:
-                'L’analyse des échappements demande quelles variables ne peuvent pas vivre dans un registre : celles qu’une fonction imbriquée lit, ou dont l’adresse survit à l’appel. Se tromper coûte cher dans les deux sens — trop strict, tout part en mémoire ; trop laxiste, une variable est lue après la disparition de son bloc d’activation.',
+                'L’analyse des échappements demande quelles variables ne peuvent pas vivre dans un registre : celles qu’une fonction imbriquée lit ou écrit, puisqu’elle les atteint à travers le bloc d’activation englobant. Se tromper coûte cher dans les deux sens — trop strict, tout part en mémoire ; trop laxiste, la fonction imbriquée lit dans le bloc une case que la variable, gardée en registre, n’a jamais atteinte.',
             },
           ],
         },
@@ -4256,7 +4241,7 @@ const tiger: ProjectDef = {
             {
               type: 'text',
               content:
-                'Die Escape-Analyse fragt, welche Variablen nicht in einem Register leben können: jene, die eine verschachtelte Funktion liest, oder deren Adresse den Aufruf überdauert. Ein Fehlurteil kostet in beide Richtungen — zu streng, und alles landet im Speicher; zu locker, und eine Variable wird gelesen, wenn ihr Rahmen längst weg ist.',
+                'Die Escape-Analyse fragt, welche Variablen nicht in einem Register leben können: jene, die eine verschachtelte Funktion liest oder schreibt, denn sie erreicht sie über den umgebenden Rahmen. Ein Fehlurteil kostet in beide Richtungen — zu streng, und alles landet im Speicher; zu locker, und die verschachtelte Funktion liest im Rahmen einen Platz, den die im Register gehaltene Variable nie erreicht hat.',
             },
           ],
         },
@@ -4285,7 +4270,6 @@ const neuralTexture: ProjectDef = {
   slug: 'neural-texture',
   category: 'rendering',
   title: 'Neural Texture Compression',
-  year: '2026',
   tone: 'purple',
   status: 'wip',
   tech: ['PyTorch', 'WebGPU', 'WGSL', 'Python', 'NumPy'],
@@ -4750,7 +4734,6 @@ export interface ResolvedSection {
 export interface ResolvedProject {
   slug: string;
   title: string;
-  year: string;
   category: Category;
   tone: Tone;
   status?: 'wip';
@@ -4837,7 +4820,6 @@ function resolveProject(def: ProjectDef, locale: Locale): ResolvedProject {
   return {
     slug: def.slug,
     title: def.title,
-    year: def.year,
     category: def.category,
     tone: def.tone,
     status: def.status,

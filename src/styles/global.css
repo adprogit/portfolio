@@ -817,6 +817,26 @@
     font-family: var(--font-mono);
     font-size: 12.5px;
     --accent: var(--diagram-accent, var(--color-brand));
+
+    /*
+     * Une couleur par rôle, la même dans toutes les figures. Ce sont les
+     * accents du site : chaque thème a déjà les siens, lisibles sur son papier.
+     */
+    --d-probe: var(--color-accent-cyan);
+    --d-normal: var(--color-accent-green);
+    --d-view: var(--color-accent-purple);
+    --d-light: var(--color-accent-yellow);
+
+    /*
+     * La lumière en aplat : en thème clair, le jaune d'accent est un olive
+     * sombre, fait pour du texte — la zone la plus éclairée paraîtrait la plus
+     * sombre. Un aplat de lumière doit être clair dans les deux thèmes.
+     */
+    --d-light-fill: #e8c24e;
+  }
+
+  .dark .diagram-svg {
+    --d-light-fill: var(--color-accent-yellow);
   }
 
   .diagram-svg :is(line, circle, rect, path, polyline, polygon):not(.d-draw) {
@@ -854,13 +874,13 @@
   }
 
   .d-light {
-    stroke: var(--color-accent-yellow);
+    stroke: var(--d-light);
     stroke-width: 1.25;
   }
 
   .d-probe {
     fill: none;
-    stroke: var(--accent);
+    stroke: var(--d-probe);
     stroke-width: 1;
   }
 
@@ -879,13 +899,13 @@
   /* Le pas décisif d'une marche : même cercle, trait plein et épaissi. */
   .d-min {
     fill: none;
-    stroke: var(--accent);
+    stroke: var(--d-probe);
     stroke-width: 2.25;
   }
 
   /* La lumière reçue, case par case : l'opacité porte la donnée. */
   .d-lit {
-    fill: var(--color-accent-yellow);
+    fill: var(--d-light-fill);
   }
 
   .d-strip-frame {
@@ -905,7 +925,29 @@
 
   .d-dot-light,
   .d-head-light {
-    fill: var(--color-accent-yellow);
+    fill: var(--d-light);
+  }
+
+  .d-normal {
+    stroke: var(--d-normal);
+    stroke-width: 1.5;
+  }
+
+  .d-view {
+    stroke: var(--d-view);
+    stroke-width: 1.5;
+  }
+
+  .d-head-normal {
+    fill: var(--d-normal);
+  }
+
+  .d-head-view {
+    fill: var(--d-view);
+  }
+
+  .d-dot-probe {
+    fill: var(--d-probe);
   }
 
   .d-head {
@@ -918,6 +960,38 @@
 
   .d-label-accent {
     fill: var(--accent);
+  }
+
+  .d-label-probe {
+    fill: var(--d-probe);
+  }
+
+  .d-label-normal {
+    fill: var(--d-normal);
+  }
+
+  .d-label-view {
+    fill: var(--d-view);
+  }
+
+  .d-label-light {
+    fill: var(--d-light);
+  }
+
+  /*
+   * Un libellé qui croise un trait reste lisible : un halo couleur de page est
+   * peint sous ses lettres (`paint-order`), et le trait s'interrompt autour.
+   */
+  :is(.d-label, .d-label-accent, .d-label-probe, .d-label-normal, .d-label-view, .d-label-light) {
+    paint-order: stroke;
+    stroke: var(--color-paper);
+    stroke-width: 5px;
+    stroke-linejoin: round;
+  }
+
+  /* Sur une forme remplie, le halo couleur de page ferait une tache. */
+  .diagram-svg .d-bare {
+    stroke: none;
   }
 
   /*

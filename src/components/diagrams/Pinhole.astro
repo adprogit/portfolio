@@ -18,16 +18,17 @@ const cell = (bottom - top) / pixels;
 const centers = Array.from({ length: pixels }, (_, j): Vec => [planeX, top + (j + 0.5) * cell]);
 
 const sphere = { c: [480, 104] as Vec, r: 48 };
-const chosen = 2;
 
-// Chaque rayon file jusqu'au bord du cadre, sauf celui qui touche la sphère.
-const rays = centers.map((px, j) => {
+// Chaque rayon file jusqu'au bord du cadre, ou s'arrête sur la sphère s'il la
+// touche. Le rayon mis en avant n'est pas choisi à la main : c'est celui qui la
+// touche, et la compilation échoue si aucun ne la touche plus.
+const rays = centers.map((px) => {
   const dir = normalize(sub(px, C));
-  const { hits } = raycastCircle(C, dir, sphere);
-  const t0 = hits.find((h) => h > 0);
-  const end = j === chosen && t0 !== undefined ? add(C, scale(dir, t0)) : toFrame(C, dir, [640, 260]);
-  return { end, hit: j === chosen && t0 !== undefined };
+  const t0 = raycastCircle(C, dir, sphere).hits.find((h) => h > 0);
+  return { end: t0 !== undefined ? add(C, scale(dir, t0)) : toFrame(C, dir, [640, 260]), hit: t0 !== undefined };
 });
+const chosen = rays.findIndex((ray) => ray.hit);
+if (chosen < 0) throw new Error('Pinhole : aucun rayon ne touche plus la sphère.');
 ---
 
 <svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.pinhole.alt')}>
@@ -48,5 +49,5 @@ const rays = centers.map((px, j) => {
 
   <text class="d-label" x={C[0]} y={C[1] + 26} text-anchor="middle">{t('diagram.camera')}</text>
   <text class="d-label" x={planeX} y={bottom + 24} text-anchor="middle">{t('diagram.imagePlane')}</text>
-  <text class="d-label-accent" x={planeX + 12} y={centers[chosen][1] - 8}>(i, j)</text>
+  <text class="d-label-accent" x={planeX + 12} y={centers[chosen][1] + 18}>(i, j)</text>
 </svg>

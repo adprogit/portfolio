@@ -41,7 +41,7 @@ const t = useT(lang);
  * `role` en plus : il redirait le titre. Le point médian sépare partout, ici
  * comme sur les pages projet ; les textes se réservent le tiret cadratin.
  */
-const title = Astro.props.title ?? `${me.headline} · ${regions}`;
+const title = Astro.props.title ?? `${me.headline} ${me.headlineAccent} · ${regions}`;
 const description = Astro.props.description ?? me.description;
 
 /*
