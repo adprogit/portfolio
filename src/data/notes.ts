@@ -144,13 +144,13 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'raySphere',
               caption:
-                'Three rays, three signs of the discriminant. The dots are the roots, computed by the function below.',
+                'Three rays, three signs of the discriminant. The dots are the roots, computed with the same formula as the function below.',
             },
             {
               type: 'code',
               snippet: 'courseRaySphere',
               caption:
-                'The nearer positive root is the visible surface. The ray marcher has no such function — this one was written for the course.',
+                'The nearest positive root is the visible surface: the entry point, or the exit when the ray starts inside the sphere. The ray marcher has no such function — this one was written for the course.',
             },
           ],
         },
@@ -185,7 +185,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'sphereTracing',
               caption:
-                'The real loop, run on this scene when the page is built: every circle is a step it actually took. The steps shrink along the box it nearly grazes, then at the surface it hits.',
+                'The real loop, run on this scene when the page is built: every circle is a step it actually took. The steps shrink as it passes the upper disc, stay short all along the box, then shrink to nothing at the surface it hits.',
             },
             {
               type: 'code',
@@ -267,7 +267,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseBlinn',
               caption:
-                'One normalisation and one pow per light — cheaper than reflecting the view vector, which is why Blinn’s variant replaced Phong’s.',
+                'One normalisation and one pow per light — no cheaper than Phong’s reflected vector per pixel. Blinn’s variant won elsewhere: H stays constant when light and eye are far away, and the highlight is not cut off at grazing angles.',
             },
           ],
         },
@@ -285,7 +285,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'softShadow',
               caption:
-                'Above the ground: the shadow ray of a penumbra point, marching towards the light; the thick circle is the step where k·h/t is smallest. Below: the light received at each point, same function. k = 32, the renderer’s value, switches almost at once; k = 4 brightens gradually.',
+                'Above the ground: the shadow ray of a penumbra point, marching towards the light with k = 4; the thick circle is the step where k·h/t is smallest. Below: the light received at each point, same function. k = 32, the renderer’s value, switches almost at once; k = 4 brightens gradually.',
             },
             {
               type: 'code',
@@ -314,7 +314,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseMirror',
               caption:
-                'The origin is pushed off the surface by 2 × SURF_DIST — otherwise the new ray would start inside it and stop at once. kr blends the local colour with the reflection.',
+                'The origin is pushed off the surface by 2 × SURF_DIST — otherwise the new ray would start less than SURF_DIST away and count as a hit on its very first step. kr blends the local colour with the reflection.',
             },
             {
               type: 'text',
@@ -377,13 +377,13 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'raySphere',
               caption:
-                'Trois rayons, trois signes du discriminant. Les points sont les racines, calculées par la fonction ci-dessous.',
+                'Trois rayons, trois signes du discriminant. Les points sont les racines, calculées avec la même formule que la fonction ci-dessous.',
             },
             {
               type: 'code',
               snippet: 'courseRaySphere',
               caption:
-                'La plus proche racine positive est la surface visible. Le ray marcher n’a pas de telle fonction : celle-ci a été écrite pour le cours.',
+                'La plus petite racine positive est la surface visible : le point d’entrée, ou la sortie quand le rayon part de l’intérieur de la sphère. Le ray marcher n’a pas de telle fonction : celle-ci a été écrite pour le cours.',
             },
           ],
         },
@@ -418,7 +418,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'sphereTracing',
               caption:
-                'La vraie boucle, exécutée sur cette scène à la compilation de la page : chaque cercle est un pas qu’elle a réellement fait. Les pas rétrécissent le long de la boîte qu’elle frôle, puis contre la surface qu’elle touche.',
+                'La vraie boucle, exécutée sur cette scène à la compilation de la page : chaque cercle est un pas qu’elle a réellement fait. Les pas rétrécissent en passant le disque du haut, restent courts tout le long de la boîte, puis s’écrasent contre la surface qu’elle touche.',
             },
             {
               type: 'code',
@@ -500,7 +500,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseBlinn',
               caption:
-                'Une normalisation et un pow par lumière — moins cher que de réfléchir le vecteur de vue, et c’est pour ça que la variante de Blinn a remplacé celle de Phong.',
+                'Une normalisation et un pow par lumière — pas moins cher, par pixel, que le vecteur réfléchi de Phong. La variante de Blinn l’a emporté ailleurs : H reste constant quand lumière et œil sont lointains, et le reflet n’est pas coupé aux angles rasants.',
             },
           ],
         },
@@ -518,7 +518,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'softShadow',
               caption:
-                'Au-dessus du sol : le rayon d’ombre d’un point de la pénombre, qui marche vers la lumière ; le cercle épais est le pas où k·h/t est le plus petit. Dessous : la lumière reçue en chaque point, même fonction. k = 32, la valeur du moteur, bascule presque d’un coup ; k = 4 s’éclaire progressivement.',
+                'Au-dessus du sol : le rayon d’ombre d’un point de la pénombre, qui marche vers la lumière avec k = 4 ; le cercle épais est le pas où k·h/t est le plus petit. Dessous : la lumière reçue en chaque point, même fonction. k = 32, la valeur du moteur, bascule presque d’un coup ; k = 4 s’éclaire progressivement.',
             },
             {
               type: 'code',
@@ -547,7 +547,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseMirror',
               caption:
-                'L’origine est décollée de la surface de 2 × SURF_DIST — sans quoi le nouveau rayon partirait de l’intérieur et s’arrêterait aussitôt. kr mélange la couleur locale et le reflet.',
+                'L’origine est décollée de la surface de 2 × SURF_DIST — sans quoi le nouveau rayon partirait à moins de SURF_DIST et compterait comme un impact dès son premier pas. kr mélange la couleur locale et le reflet.',
             },
             {
               type: 'text',
@@ -610,13 +610,13 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'raySphere',
               caption:
-                'Drei Strahlen, drei Vorzeichen der Diskriminante. Die Punkte sind die Wurzeln, berechnet mit der Funktion darunter.',
+                'Drei Strahlen, drei Vorzeichen der Diskriminante. Die Punkte sind die Wurzeln, berechnet mit derselben Formel wie die Funktion darunter.',
             },
             {
               type: 'code',
               snippet: 'courseRaySphere',
               caption:
-                'Die nächste positive Wurzel ist die sichtbare Fläche. Der Raymarcher hat keine solche Funktion — diese hier wurde für den Kurs geschrieben.',
+                'Die kleinste positive Wurzel ist die sichtbare Fläche: der Eintrittspunkt, oder der Austritt, wenn der Strahl im Inneren der Kugel beginnt. Der Raymarcher hat keine solche Funktion — diese hier wurde für den Kurs geschrieben.',
             },
           ],
         },
@@ -651,7 +651,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'sphereTracing',
               caption:
-                'Die echte Schleife, beim Bauen der Seite auf dieser Szene ausgeführt: Jeder Kreis ist ein Schritt, den sie wirklich gemacht hat. Die Schritte schrumpfen entlang des Quaders, den sie fast streift, dann an der Fläche, die sie trifft.',
+                'Die echte Schleife, beim Bauen der Seite auf dieser Szene ausgeführt: Jeder Kreis ist ein Schritt, den sie wirklich gemacht hat. Die Schritte schrumpfen an der oberen Scheibe, bleiben entlang des ganzen Quaders kurz und werden an der getroffenen Fläche verschwindend klein.',
             },
             {
               type: 'code',
@@ -733,7 +733,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseBlinn',
               caption:
-                'Eine Normalisierung und ein pow pro Licht — billiger, als den Blickvektor zu spiegeln, und deshalb hat Blinns Variante die von Phong abgelöst.',
+                'Eine Normalisierung und ein pow pro Licht — pro Pixel nicht billiger als Phongs gespiegelter Vektor. Blinns Variante gewann anderswo: H bleibt konstant, wenn Licht und Auge weit entfernt sind, und das Glanzlicht wird bei streifendem Einfall nicht abgeschnitten.',
             },
           ],
         },
@@ -751,7 +751,7 @@ const optics: NoteDef = {
               type: 'diagram',
               diagram: 'softShadow',
               caption:
-                'Über dem Boden: der Schattenstrahl eines Punkts im Halbschatten auf dem Weg zum Licht; der dicke Kreis ist der Schritt mit dem kleinsten k·h/t. Darunter: das an jedem Punkt empfangene Licht, dieselbe Funktion. k = 32, der Wert des Renderers, wechselt fast schlagartig; k = 4 hellt sich allmählich auf.',
+                'Über dem Boden: der Schattenstrahl eines Punkts im Halbschatten auf dem Weg zum Licht, mit k = 4; der dicke Kreis ist der Schritt mit dem kleinsten k·h/t. Darunter: das an jedem Punkt empfangene Licht, dieselbe Funktion. k = 32, der Wert des Renderers, wechselt fast schlagartig; k = 4 hellt sich allmählich auf.',
             },
             {
               type: 'code',
@@ -780,7 +780,7 @@ const optics: NoteDef = {
               type: 'code',
               snippet: 'courseMirror',
               caption:
-                'Der Ursprung wird um 2 × SURF_DIST von der Fläche abgesetzt — sonst begänne der neue Strahl in ihr und hielte sofort an. kr mischt die lokale Farbe mit der Spiegelung.',
+                'Der Ursprung wird um 2 × SURF_DIST von der Fläche abgesetzt — sonst begänne der neue Strahl weniger als SURF_DIST entfernt und zählte schon beim ersten Schritt als Treffer. kr mischt die lokale Farbe mit der Spiegelung.',
             },
             {
               type: 'text',
