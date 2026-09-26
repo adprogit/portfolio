@@ -631,7 +631,8 @@ for epoch in range(1, EPOCHS + 1):
   courseRaySphere: {
     lang: 'cpp',
     source: 'course',
-    code: `// |o + t·d − c|² = r²  →  a·t² + b·t + c = 0, avec |d| = 1 donc a = 1
+    code: `// |o + t·d − center|² = r²  →  t² + 2b·t + c = 0
+// avec |d| = 1, b = oc·d et c = |oc|² − r²
 std::optional<float> hit_sphere(const Ray& ray, const Point3& center, float r)
 {
     const Vector3 oc = ray.origin() - center;
@@ -641,8 +642,12 @@ std::optional<float> hit_sphere(const Ray& ray, const Point3& center, float r)
 
     if (disc < 0.0f)
         return std::nullopt;            // le rayon passe à côté
-    const float t = -b - std::sqrt(disc);
-    return t > 0.0f ? std::optional(t) : std::nullopt;
+    const float s = std::sqrt(disc);
+    if (-b - s > 0.0f)
+        return -b - s;                  // l'entrée
+    if (-b + s > 0.0f)
+        return -b + s;                  // la sortie : l'origine est dedans
+    return std::nullopt;                // la sphère est derrière le rayon
 }`,
   },
   courseMarch: {
