@@ -123,6 +123,14 @@ portage. Les commentaires `/* */` **s'imbriquent** en WGSL, et un
 `chess/*_sdf.cpp` dans un commentaire avalait tout le reste du shader.
 `npm run shaders` lit maintenant les commentaires comme WGSL.
 
+La partie affichée se remplace par un **PGN** déposé sur la figure ou choisi
+avec « Charger un PGN ». `src/lib/chess/pgn.ts` le lit dans le navigateur (rien
+n'est envoyé) : un petit générateur de coups légaux résout chaque coup SAN,
+roques, prise en passant, promotions et en-tête `[FEN]` compris. Commentaires,
+variantes et NAG sont ignorés, et seule la première partie du fichier est lue.
+Il a été vérifié contre le `chess.hpp` de zugzwang, avec la même position
+finale sur les parties de `assets/`.
+
 Un échec de rendu (shader refusé, périphérique perdu) ne s'affiche pas comme un
 navigateur sans WebGPU : les deux ont leur phrase.
 
