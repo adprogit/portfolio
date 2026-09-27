@@ -90,11 +90,11 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'GPU optimisation',
     role: 'Rendering, image processing and GPU optimisation',
     description:
-      'I am an engineer specialised in rendering, image processing and GPU optimisation. I write C++, CUDA and Python to compute images and to make them compute faster. I am looking for an internship.',
+      'Engineer specialised in rendering, image processing and GPU optimisation. I write C++, CUDA and Python to make computers draw images (and draw them faster).',
     approach:
-      'Most of what is here was rebuilt rather than assembled: a ray marcher with no graphics API, a U-Net with no reference implementation, a neural texture codec decoded on the GPU. It is the long way round, and the only one that shows where the time actually goes — so every page states its numbers, including the ones that did not come out well.',
+      'Almost everything here was rebuilt rather than assembled: a ray marcher with no graphics API, a U-Net with no reference implementation, a neural texture codec decoded on the GPU. It is the long way round, but the only one that shows where the time actually goes. So every page states its numbers (the unflattering ones included).',
     location: 'France, Germany, Austria, Switzerland',
-    seeking: 'Looking for an internship',
+    seeking: 'Looking for a final-year internship',
     skills: [
       {
         title: 'Languages & systems',
@@ -124,11 +124,11 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'optimisation GPU',
     role: 'Rendu, traitement d’images et optimisation GPU',
     description:
-      'Je suis ingénieur spécialisé en rendu, traitement d’images et optimisation GPU. J’écris du C++, du CUDA et du Python pour faire calculer des images — et pour les faire calculer plus vite. Je cherche un stage.',
+      'Ingénieur spécialisé en rendu, traitement d’images et optimisation GPU. J’écris du C++, du CUDA et du Python pour faire calculer des images (et les faire calculer plus vite).',
     approach:
-      'L’essentiel de ce qui est ici a été refait plutôt qu’assemblé : un ray marcher sans API graphique, un U-Net sans implémentation de référence, un codec neural de textures décodé sur le GPU. C’est le chemin long, et le seul qui montre où passe vraiment le temps — alors chaque page donne ses chiffres, y compris ceux qui ne sont pas bons.',
+      'Presque tout ce qui est ici a été refait plutôt qu’assemblé : un ray marcher sans API graphique, un U-Net sans implémentation de référence, un codec neural de textures décodé sur le GPU. C’est le chemin le plus long, mais c’est le seul qui montre où passe vraiment le temps. Chaque page donne donc ses chiffres (y compris les moins flatteurs).',
     location: 'France, Allemagne, Autriche, Suisse',
-    seeking: 'À la recherche d’un stage',
+    seeking: 'À la recherche d’un stage de fin d’études',
     skills: [
       {
         title: 'Langages & systèmes',
@@ -158,11 +158,11 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'GPU-Optimierung',
     role: 'Rendering, Bildverarbeitung und GPU-Optimierung',
     description:
-      'Ich bin Ingenieur mit Schwerpunkt Rendering, Bildverarbeitung und GPU-Optimierung. Ich schreibe C++, CUDA und Python, um Bilder zu berechnen — und sie schneller berechnen zu lassen. Ich suche ein Praktikum.',
+      'Ingenieur mit Schwerpunkt Rendering, Bildverarbeitung und GPU-Optimierung. Ich schreibe C++, CUDA und Python, um Bilder berechnen zu lassen (und das schneller).',
     approach:
-      'Das meiste hier ist nachgebaut statt zusammengesetzt: ein Ray Marcher ohne Grafik-API, ein U-Net ohne Referenzimplementierung, ein neuronaler Texturcodec, auf der GPU dekodiert. Das ist der lange Weg und der einzige, der zeigt, wohin die Zeit wirklich geht — deshalb nennt jede Seite ihre Zahlen, auch die, die nicht gut ausgefallen sind.',
+      'Fast alles hier ist nachgebaut statt zusammengesetzt: ein Ray Marcher ohne Grafik-API, ein U-Net ohne Referenzimplementierung, ein neuronaler Texturcodec, auf der GPU dekodiert. Das ist der längere Weg, aber der einzige, der zeigt, wohin die Zeit wirklich geht. Deshalb nennt jede Seite ihre Zahlen (auch die weniger schmeichelhaften).',
     location: 'Frankreich, Deutschland, Österreich, Schweiz',
-    seeking: 'Auf der Suche nach einem Praktikum',
+    seeking: 'Suche ein Abschlusspraktikum',
     skills: [
       {
         title: 'Sprachen & Systeme',

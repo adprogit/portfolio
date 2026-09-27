@@ -46,8 +46,10 @@ const notes = getNotes(lang);
       {/*
         La seule ligne du site qui s'écrit. `--chars` donne au masque son nombre
         de pas : il change avec la langue, donc il est calculé ici et pas en CSS.
+        Elle ne peut pas passer à la ligne (le masque est horizontal) : sur un
+        téléphone, l'interlettrage se resserre pour qu'elle tienne à 360 px.
       */}
-      <p class="reveal font-mono text-xs tracking-[0.12em] text-brand uppercase">
+      <p class="reveal font-mono text-xs tracking-[0.06em] text-brand uppercase sm:tracking-[0.12em]">
         <span class="typed glow" style={`--chars: ${me.seeking.length}`}>
           <span>{me.seeking}</span>
         </span>

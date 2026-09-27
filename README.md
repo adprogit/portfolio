@@ -113,6 +113,21 @@ deux tampons, le shader ne change pas. Le rendu est à la demande. Pas de
 réflexions : WGSL interdit la récursion (et le moteur rend de toute façon avec
 `REFLECTION_DEPTH = 0`).
 
+**Rendu progressif, à la résolution native.** La scène est immobile entre deux
+interactions : chaque image ajoute un échantillon, décalé dans le pixel selon
+une suite de Halton, à une texture `rgba16float` en mélange additif, jusqu'aux
+16 échantillons par pixel de `main.cpp`. Une passe de présentation fait la
+moyenne en linéaire puis le gamma, comme `Scene::render`. Le canvas suit la
+densité de l'écran (jusqu'à 2×). Une première image réduite mesure le coût
+d'un pixel ; la résolution de repos est choisie pour qu'un échantillon tienne
+en ~90 ms (plancher 35 %), et le mouvement du curseur se rend à la résolution
+qui tient en ~20 ms. Un seul échantillon en vol à la fois, et plus rien une
+fois l'image finie.
+
+Le WGSL est minifié à la compilation (`tools/wgsl-minify.mjs`, plugin Vite) :
+ses commentaires restent dans le source, pas dans le JS livré.
+`npm run shaders` vérifie aussi la version minifiée.
+
 Le `GPUDevice` est partagé par tout l'onglet (`src/lib/gpu/device.ts`) et le
 module n'est chargé que quand la figure approche de l'écran. Sans WebGPU, la
 figure dit pourquoi et le reste de la page fonctionne.

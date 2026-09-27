@@ -20,6 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { minifyWgsl } from './wgsl-minify.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cxx = join(root, '..', 'raymarcher', 'src');
@@ -46,7 +47,7 @@ const BUILTINS = new Set(
    exp2 faceForward firstLeadingBit firstTrailingBit floor fma fract inverseSqrt length log log2 max min
    mix modf normalize pow quantizeToF16 radians reflect refract reverseBits round saturate select sign
    sin sinh smoothstep sqrt step tan tanh transpose trunc array bool f32 i32 u32 vec2 vec3 vec4 vec2f
-   vec3f vec4f vec2u vec3u vec4u vec2i vec3i vec4i mat2x2f mat3x3f mat4x4f`.split(/\s+/)
+   vec3f vec4f vec2u vec3u vec4u vec2i vec3i vec4i mat2x2f mat3x3f mat4x4f textureSample`.split(/\s+/)
 );
 
 const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'return', 'case', 'else', 'loop']);
@@ -227,12 +228,31 @@ const problems = [];
 /* L'échiquier : WGSL contre les sources C++, fonction par fonction. */
 const chess = extract(read('src/lib/chess/shader-wgsl.ts'), 'SHADER');
 
-problems.push(
-  ...checkStructure('échiquier (WGSL)', chess, [
-    ['vertex', 'vs_main'],
-    ['fragment', 'fs_main'],
-  ])
-);
+const present = extract(read('src/lib/chess/shader-wgsl.ts'), 'PRESENT');
+
+// Le source, et ce que le build livre réellement : le WGSL minifié.
+for (const [label, code] of [
+  ['échiquier (WGSL)', chess],
+  ['échiquier (WGSL minifié)', minifyWgsl(chess)],
+]) {
+  problems.push(
+    ...checkStructure(label, code, [
+      ['vertex', 'vs_main'],
+      ['fragment', 'fs_main'],
+    ])
+  );
+}
+for (const [label, code] of [
+  ['présentation (WGSL)', present],
+  ['présentation (WGSL minifié)', minifyWgsl(present)],
+]) {
+  problems.push(
+    ...checkStructure(label, code, [
+      ['vertex', 'vs_present'],
+      ['fragment', 'fs_present'],
+    ])
+  );
+}
 
 if (!existsSync(cxx)) {
   console.log('⚠ sources C++ absentes — comparaison des constantes passée');
