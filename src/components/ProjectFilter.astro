@@ -201,8 +201,16 @@ const chip =
       });
     }
 
-    // Une adresse du genre `…/#tag-cpp` arrive filtrée.
-    const wanted = decodeURIComponent(window.location.hash).match(/^#tag-(.+)$/)?.[1];
+    // Une adresse du genre `…/#tag-cpp` arrive filtrée. Le fragment vient de
+    // qui a écrit le lien : un `%` mal formé fait lever `decodeURIComponent`,
+    // et la valeur n'est retenue que si un bouton la porte déjà.
+    let hash = '';
+    try {
+      hash = decodeURIComponent(window.location.hash);
+    } catch {
+      // Lien abîmé : on ouvre simplement sans filtre.
+    }
+    const wanted = hash.match(/^#tag-(.+)$/)?.[1];
     if (wanted && buttons.some((button) => button.dataset.tag === wanted)) apply(wanted);
   };
 

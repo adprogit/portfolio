@@ -76,7 +76,7 @@ const ogImage = await getImage({ src: ogSource, width: 1200, format: 'webp', qua
  */
 const csp = [
   "default-src 'self'",
-  "img-src 'self' data:",
+  "img-src 'self'",
   "media-src 'self'",
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
@@ -140,7 +140,12 @@ const csp = [
         const apply = () => {
           const root = document.documentElement;
           root.classList.add('js');
-          const theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+          // localStorage lève en navigation restreinte : le thème par défaut suffit.
+          let stored = null;
+          try {
+            stored = localStorage.getItem('theme');
+          } catch {}
+          const theme = stored === 'light' ? 'light' : 'dark';
           root.classList.toggle('dark', theme === 'dark');
           root.style.colorScheme = theme;
         };

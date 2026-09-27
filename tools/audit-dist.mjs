@@ -242,6 +242,23 @@ if (jsBytes > JS_BUDGET) {
   );
 }
 
+/* ── Sinks HTML et évaluation de code ─────────────────────────────── */
+
+/*
+ * Le JavaScript du site n'écrit jamais de HTML et n'évalue jamais de texte :
+ * tout ce qui vient d'ailleurs (un PGN déposé, un fragment d'URL) passe par
+ * `textContent`. Ce contrôle le garantit pour la suite. Seul le routeur
+ * d'Astro est exempté : il remplace la page par du HTML qu'il vient de
+ * charger depuis le site lui-même, sous la même CSP.
+ */
+const SINKS = /\binnerHTML\b|\bouterHTML\b|insertAdjacentHTML|document\.write|\beval\(|new Function\b|srcdoc|parseFromString/;
+
+for (const file of scripts) {
+  if (/ClientRouter\.astro_astro_type_script/.test(file)) continue;
+  const found = readFileSync(file, 'utf8').match(SINKS);
+  if (found) problems.push(`${relative(root, file)} : « ${found[0]} » — le site n'écrit pas de HTML depuis JS`);
+}
+
 /* ── Verdict ───────────────────────────────────────────────────────── */
 
 const unique = [...new Set(problems)];

@@ -38,11 +38,77 @@ export interface Game {
   result: string;
 }
 
+/*
+ * ── Garde ─────────────────────────────────────────────────────────────
+ * Le fichier vient de n'importe qui. Il n'atteint ni serveur ni base (rien
+ * n'est envoyé : pas d'injection SQL possible, il n'y a pas de requête), et
+ * rien de ce qui en sort n'est interprété comme du HTML ou du code : le
+ * composant l'écrit en `textContent`, et la CSP refuse tout script inline.
+ * Cette garde ajoute ce qui reste :
+ *
+ * - **liste blanche** : seuls quatre en-têtes sont lus (White, Black, Result,
+ *   FEN), chacun validé ; les coups passent par une grammaire SAN stricte ;
+ * - **texte affiché nettoyé** : caractères de contrôle et de mise en forme
+ *   bidirectionnelle retirés (un nom ne peut pas se retourner à l'écran ni
+ *   déborder sur l'interface), longueur bornée ;
+ * - **coût borné** : taille du fichier, nombre de coups, et une lecture en
+ *   une passe — aucune expression régulière qui puisse devenir quadratique ;
+ * - **pas de prototype** : les en-têtes vivent dans une `Map`, une clé
+ *   `__proto__` n'est qu'une clé ignorée.
+ */
+
+/** Contrôles C0/C1, formats invisibles et bidi (U+200B–200F, 202A–202E, 2066–2069, FEFF). */
+const UNSAFE_CHARS = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+
+/** Un texte venu du fichier, rendu inoffensif à l'affichage : une ligne, bornée. */
+export function cleanText(value: string, max = 60): string {
+  // `<`, `>` et l'accent grave n'ont rien à faire dans un nom de joueur : ils
+  // sont inoffensifs en `textContent`, mais on ne parie pas sur l'avenir.
+  const flat = value.replace(UNSAFE_CHARS, ' ').replace(/[<>`]/g, '').replace(/ {2,}/g, ' ').trim();
+  return flat.length > max ? flat.slice(0, max - 1) + '…' : flat;
+}
+
 /** Le coup qui a cassé la lecture, pour le dire au visiteur. */
 export class PgnError extends Error {
-  constructor(readonly ply: number, readonly san: string) {
-    super(`${ply}:${san}`);
+  readonly san: string;
+  constructor(readonly ply: number, san: string) {
+    super(`${ply}`);
+    this.san = cleanText(san, 16);
   }
+}
+
+const HEADERS = new Set(['White', 'Black', 'Result', 'FEN']);
+const FEN = /^[pnbrqkPNBRQK1-8]{1,8}(\/[pnbrqkPNBRQK1-8]{1,8}){7} [wb] (-|K?Q?k?q?) (-|[a-h][36])( \d{1,4} \d{1,4})?$/;
+const RESULT = /^(1-0|0-1|1\/2-1\/2)$/;
+
+/**
+ * Sépare en-têtes et coups en **une seule passe** : commentaires `{…}` et
+ * `;…`, variantes `(…)` à toute profondeur, lignes d'en-tête `[Clé "valeur"]`.
+ * Linéaire quoi qu'on lui donne — un fichier piégé ne peut pas faire ramer.
+ */
+function split(text: string): { headers: Map<string, string>; body: string } {
+  const headers = new Map<string, string>();
+  let body = '';
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (ch === '{') {
+      const end = text.indexOf('}', i);
+      i = end < 0 ? text.length : end;
+    } else if (ch === ';') {
+      const end = text.indexOf('\n', i);
+      i = end < 0 ? text.length : end;
+    } else if (ch === '(') depth++;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    else if (depth) continue;
+    else if (ch === '[') {
+      const end = text.indexOf(']', i);
+      const line = /^\[([A-Za-z]+)\s+"([^"\n]*)"\s*\]$/.exec(text.slice(i, end < 0 ? i + 1 : end + 1));
+      if (line && HEADERS.has(line[1]!)) headers.set(line[1]!, line[2]!);
+      i = end < 0 ? text.length : end;
+    } else body += ch;
+  }
+  return { headers, body };
 }
 
 const LETTERS: Record<string, Kind> = { P: PAWN, N: KNIGHT, B: BISHOP, R: ROOK, Q: QUEEN, K: KING };
@@ -208,19 +274,16 @@ function fromFen(fen: string | undefined): Position {
  * contre les coups légaux de la position.
  */
 export function parsePgn(text: string): Game {
-  const headers: Record<string, string> = {};
-  for (const m of text.matchAll(/^\s*\[(\w+)\s+"((?:[^"\\]|\\.)*)"\s*\]/gm)) headers[m[1]!] = m[2]!;
+  // Un fichier binaire (image, archive renommée) n'est pas un PGN.
+  if (text.includes('\u0000')) throw new PgnError(0, '');
 
-  let body = text
-    .replace(/^\s*\[.*\]\s*$/gm, ' ')
-    .replace(/\{[^}]*\}/g, ' ')
-    .replace(/;[^\n]*/g, ' ');
-  // Une variante peut en contenir d'autres : on retire les plus internes
-  // jusqu'à ce qu'il n'en reste plus.
-  for (let prev = ''; prev !== body; ) body = (prev = body).replace(/\([^()]*\)/g, ' ');
-  body = body.replace(/\$\d+/g, ' ').replace(/\d+\.(\.\.)?/g, ' ');
+  const parts = split(text.slice(0, MAX_PGN_BYTES));
+  const headers = parts.headers;
+  const body = parts.body.replace(/\$\d+/g, ' ').replace(/\d+\.(\.\.)?/g, ' ');
 
-  const pos = fromFen(headers.FEN);
+  const fen = headers.get('FEN');
+  if (fen !== undefined && !FEN.test(fen.trim())) throw new PgnError(0, 'FEN');
+  const pos = fromFen(fen?.trim());
   const start = pos.board.slice();
   const moves: HalfMove[] = [];
 
@@ -260,14 +323,18 @@ export function parsePgn(text: string): Game {
 
     if (found.length !== 1) throw new PgnError(moves.length + 1, token);
     play(pos, found[0]!);
-    moves.push({ lan: found[0]!, san: token });
+    moves.push({ lan: found[0]!, san: cleanText(token, 12) });
   }
 
-  const player = (key: string) => (headers[key] && headers[key] !== '?' ? headers[key] : '');
+  const player = (key: string) => {
+    const value = cleanText(headers.get(key) ?? '');
+    return value === '?' ? '' : value;
+  };
+  const result = headers.get('Result') ?? '';
   return {
     moves,
     start,
     players: [player('White'), player('Black')].filter(Boolean).join(' – '),
-    result: headers.Result && headers.Result !== '*' ? headers.Result : '',
+    result: RESULT.test(result) ? result : '',
   };
 }
