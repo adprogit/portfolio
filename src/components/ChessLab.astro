@@ -198,7 +198,7 @@ const moves = GAME.map((move) => move.san);
      */
     const loadFile = async (picked: File | undefined) => {
       if (!picked || !handle) return;
-      const { MAX_PGN_BYTES, parsePgn, PgnError } = await import('../lib/chess/pgn');
+      const { MAX_PGN_BYTES, cleanText, parsePgn, PgnError } = await import('../lib/chess/pgn');
 
       if (picked.size > MAX_PGN_BYTES) {
         label.textContent = game.dataset.tooBig ?? '';
@@ -210,13 +210,15 @@ const moves = GAME.map((move) => move.san);
         handle.load(parsed.moves, parsed.start);
         moves = parsed.moves.map((move) => move.san);
         game.textContent =
-          [parsed.players || picked.name, parsed.result].filter(Boolean).join(' · ');
+          [parsed.players || cleanText(picked.name), parsed.result].filter(Boolean).join(' · ');
         refresh();
       } catch (error) {
         const where = error instanceof PgnError ? error : new PgnError(0, '');
+        // Remplaçants en fonction : une chaîne interpréterait `$&` ou `$'`
+        // venus du fichier comme des motifs de remplacement.
         label.textContent = (game.dataset.bad ?? '')
-          .replace('{n}', String(where.ply))
-          .replace('{san}', where.san);
+          .replace('{n}', () => String(where.ply))
+          .replace('{san}', () => where.san);
       }
     };
 

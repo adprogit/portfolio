@@ -52,6 +52,7 @@ jobs:
         run: |
           npx astro check
           node tools/shader-parity.mjs
+          node tools/pgn-guard.mjs
           npx astro build
           node tools/prune-dist.mjs
           node tools/csp-hashes.mjs

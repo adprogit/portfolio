@@ -12,10 +12,11 @@
     "check": "astro check",
     "contrast": "node tools/check-contrast.mjs",
     "audit": "node tools/audit-dist.mjs",
-    "verify": "astro check && node tools/shader-parity.mjs && astro build && node tools/prune-dist.mjs && node tools/csp-hashes.mjs && node tools/check-contrast.mjs && node tools/audit-dist.mjs && node tools/smoke-dev.mjs",
+    "verify": "astro check && node tools/shader-parity.mjs && node tools/pgn-guard.mjs && astro build && node tools/prune-dist.mjs && node tools/csp-hashes.mjs && node tools/check-contrast.mjs && node tools/audit-dist.mjs && node tools/smoke-dev.mjs",
     "prune": "node tools/prune-dist.mjs",
     "smoke": "node tools/smoke-dev.mjs",
     "shaders": "node tools/shader-parity.mjs",
+    "pgn": "node tools/pgn-guard.mjs",
     "csp": "node tools/csp-hashes.mjs"
   },
   "dependencies": {

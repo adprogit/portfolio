@@ -26,10 +26,11 @@ npm run verify     # tous les contrôles — à lancer avant de publier
 |---|---|
 | `check` | Types (`astro check`) |
 | `shaders` | Compare le WGSL de l'échiquier au C++ dont il est le portage ([zugzwang](https://github.com/Neww3r/zugzwang) cloné en `../raymarcher/`, ignoré s'il est absent) |
+| `pgn` | Met la garde du lecteur PGN à l'épreuve : charges hostiles, fichiers piégés, parties de référence |
 | `prune` | Retire de `dist/` les médias que rien ne référence |
 | `csp` | Remplace `'unsafe-inline'` par les empreintes des scripts inline |
 | `contrast` | Contrastes WCAG AA de la palette, dans les deux thèmes |
-| `audit` | Contrôle `dist/` : liens sortants, `noindex`, budget JS (48 Ko), HTML bien formé |
+| `audit` | Contrôle `dist/` : liens sortants, `noindex`, budget JS (48 Ko), aucun `innerHTML`/`eval` dans le JS du site, HTML bien formé |
 | `smoke` | Démarre le serveur de dev et parcourt toutes les routes |
 
 ## Contenu
@@ -148,6 +149,14 @@ navigateur sans WebGPU : les deux ont leur phrase.
 - **CSP stricte** : `tools/csp-hashes.mjs` remplace `'unsafe-inline'` par les
   empreintes des scripts inline, puis se relit et échoue si un script n'est pas
   couvert. `style-src 'unsafe-inline'` reste pour les styles scopés d'Astro.
+- **Entrées du visiteur** : un PGN déposé et le fragment d'URL du filtre sont
+  les deux seules. Aucune ne part vers un serveur (il n'y en a pas : pas
+  d'injection SQL possible) ni n'est écrite en HTML (tout passe par
+  `textContent`, et `npm run audit` refuse `innerHTML`, `eval` et consorts
+  dans le JS du site). Le lecteur PGN n'accepte que quatre en-têtes validés
+  et une grammaire SAN stricte, nettoie ce qu'il affiche (contrôles, bidi,
+  balises), lit en temps linéaire et borne la taille ; `npm run pgn` le
+  vérifie avec des charges hostiles et des fichiers piégés.
 - **Dépendances** : versions exactes (`save-exact`), scripts d'installation
   bloqués (`ignore-scripts`, voir `.npmrc`), aucun `override`. Si esbuild se
   plaint après un `npm install` : `npm rebuild esbuild`. `npm audit` doit rester
