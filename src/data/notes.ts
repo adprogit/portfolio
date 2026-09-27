@@ -32,6 +32,8 @@ import {
 
 // Le banc d'essai des méthodes de descente, recalculé à la compilation.
 import * as optim from '../lib/optim';
+// L'architecture du U-Net, recalculée à la compilation.
+import * as unetLib from '../lib/unet';
 
 interface NoteText {
   /** Surtitre en mono, sans le `//`. */
@@ -1472,7 +1474,7 @@ type Fact = number | string | ((locale: Locale) => string);
 
 /** Affirmation du texte vérifiée sur les résultats : fausse, elle arrête la compilation. */
 function claim(ok: boolean, what: string) {
-  if (!ok) throw new Error(`Le texte du banc d'essai affirme « ${what} », que le calcul dément.`);
+  if (!ok) throw new Error(`Le texte d'une note affirme « ${what} », que le calcul dément.`);
 }
 
 /**
@@ -1606,6 +1608,766 @@ const benchFacts = (): Record<string, Fact> => {
   };
 };
 
+/* ── U-Net, pièce par pièce ────────────────────────────────────────── */
+
+/*
+ * Des notes de cours sur le U-Net du projet `unet-coco`, en listes et en
+ * formules plutôt qu'en récit. Les chiffres d'architecture — tailles, paramètres,
+ * calcul, champ réceptif — sont recalculés par `src/lib/unet.ts` et injectés
+ * par `{{clé}}` ; seuls les résultats mesurés du projet (`results`) sont saisis.
+ * Les extraits sont ceux de la page du projet.
+ */
+const unet: NoteDef = {
+  slug: 'unet-piece-by-piece',
+  tone: 'orange',
+  category: 'deep-learning',
+  project: 'unet-coco',
+  facts: () => unetFacts(),
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      kicker: 'deep learning · segmentation',
+      title: 'U-Net,',
+      titleAccent: 'piece by piece',
+      description:
+        'Course notes on the U-Net of the COCO project: padded convolutions, pooling and transposed convolutions, skip connections, receptive field, parameter and compute budget, Dice and IoU. Every number recomputed from the architecture.',
+      sections: [
+        {
+          id: 'task',
+          kicker: '01',
+          title: 'The task',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Input: an RGB image, 3 × {{input}} × {{input}}, values in [0, 1].',
+                'Output: one logit z per pixel, 1 × {{input}} × {{input}}. p = σ(z) is the probability of foreground; mask = p > 0.5.',
+                'Ground truth: the union of all annotated COCO instances; everything else is background. About {{fg}} % of pixels are foreground.',
+                'Data: COCO val2017, the {{nImages}} images with at least one annotation → {{nTrain}} train, {{nVal}} validation, {{nTest}} test. The test split is read once, at the end.',
+                'Resizing: image and mask to {{input}} × {{input}}; the mask by nearest neighbour — interpolating a binary mask creates values that are neither 0 nor 1.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'convolution',
+          kicker: '02',
+          title: 'Padded 3×3 convolution',
+          blocks: [
+            {
+              type: 'text',
+              content: 'Output side: o = ⌊(i + 2p − k) / s⌋ + 1. With k = 3, p = 1, s = 1: o = i.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetConv',
+              caption:
+                'Centred on the first pixel, the kernel reaches into the padding: zeros stand in for the missing neighbours. Five positions per row, five outputs.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Weights of one convolution: k²·C_in·C_out. No bias: the BatchNorm that follows subtracts the mean, which would cancel it, and adds its own shift β.',
+                'DoubleConv = (conv 3×3 → BatchNorm → ReLU) × 2 — the block of every stage.',
+                'Padding keeps each map at exactly half the side of the level above, so encoder and decoder maps align without cropping. The original paper uses unpadded convolutions and crops the skip maps instead.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'resampling',
+          kicker: '03',
+          title: 'Going down, coming back up',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetResample',
+              caption:
+                'Left: each 2×2 block keeps its maximum. Right: each input value is multiplied by the 2×2 kernel and written into its own block — highlighted, the largest value and the block it paints.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Max pool 2×2, stride 2: H × W → H/2 × W/2, channels unchanged, no parameters. It keeps the strongest response of each block and forgets where in the block it was.',
+                'Transposed convolution 2×2, stride 2: o = (i − 1)·s − 2p + k = 2i. It also halves the channels, C → C/2: 4·C·C/2 weights and C/2 biases.',
+                'Kernel = stride: the output blocks do not overlap, so every output pixel gets exactly one contribution — no checkerboard pattern from uneven overlap.',
+                'Four poolings: the input side must be a multiple of 2⁴ = 16, hence {{input}}.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'architecture',
+          kicker: '04',
+          title: 'The whole network',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetArchitecture',
+              caption:
+                'Drawn from the layer list: box width grows with the channels, each level halves the side. Solid arrows change the resolution; dashed arrows carry an encoder map across to the decoder.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Encoder: {{encChannels}} channels at {{encSides}} — the channels double when the side halves.',
+                'Bottleneck: {{midChannels}} channels at {{midSide}}².',
+                'Decoder stage: transposed convolution (C → C/2) → concatenation with the encoder map of the same side (C/2 + C/2 = C) → DoubleConv (C → C/2).',
+                'Head: 1×1 convolution, {{width}} → 1, one logit per pixel. No sigmoid inside the network: it is applied in the loss, where log σ(z) is computed stably.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetUp',
+              caption: 'One decoder stage. torch.cat along dim 1 stacks the channels: C/2 from the skip, C/2 from below.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetBudget',
+              caption:
+                'Share of the total, per stage. Parameters: weights, biases and BatchNorm. Multiply-adds: the convolutions, for one {{input}} × {{input}} image.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Total: {{params}} parameters; {{gmac}} GMAC per image.',
+                'Bottleneck and deepest decoder stage: {{deepShare}} % of the parameters. A 3×3 convolution holds 9·C_in·C_out weights, and C is largest at the bottom.',
+                'Compute is spread evenly: from one level to the next, C_in·C_out is multiplied by 4 and the area divided by 4. Each encoder level ≈ {{encLevel}} %, each decoder level ≈ {{decLevel}} %; the first stage is lighter, with 3 input channels.',
+                'Width 64, as in the paper: {{params64}} parameters, ×{{paramsRatio}}. Parameters grow with the square of the width.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'receptive-field',
+          kicker: '05',
+          title: 'Receptive field',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'r ← r + (k − 1)·j, then j ← j·s. r: side of the receptive field; j: distance between two neighbouring units. Both in input pixels.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetReceptive',
+              caption:
+                'To scale on the {{input}} × {{input}} input. Each square is what one unit sees at the end of a stage; at the bottleneck it is larger than the image.',
+            },
+            {
+              type: 'list',
+              items: [
+                'End of each encoder stage: {{rf1}}, {{rf2}}, {{rf3}} and {{rf4}} px. Bottleneck: {{rfB}} px ≥ {{input}} — every bottleneck unit depends on the whole image, padding included.',
+                'The same {{convs}} convolutions without pooling: 1 + 2 × {{convs}} = {{rfNoPool}} px. Pooling doubles j, so every later 3×3 convolution adds twice as much context.',
+                'What the bottleneck gains in context it loses in position: one unit per {{cellSide}} × {{cellSide}} block. The skip connections bring the full-resolution position back.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'losses',
+          kicker: '06',
+          title: 'Losses and metrics',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'BCE: L = −(1/N) Σ [y log p + (1 − y) log(1 − p)]. Gradient per logit: ∂L/∂z = (p − y)/N — bounded, and never zero while the pixel is wrong.',
+                'Soft Dice: D = (2 Σ p·y + ε) / (Σ p + Σ y + ε); loss 1 − D, per image, then averaged.',
+                'ε = 1: an empty target with an empty prediction gives D = 1 instead of 0/0.',
+                'BCE counts pixels: with {{fg}} % foreground, background pixels carry most of the loss. Dice counts overlap relative to the object: a small object weighs as much as a large one.',
+                'Training minimises BCE + Dice: smooth gradients from the first, the target metric from the second.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'diceLoss',
+              caption: 'Sums over dims (2, 3): one Dice per image, then the mean over the batch.',
+            },
+            {
+              type: 'text',
+              content: 'IoU: J = |P ∩ Y| / |P ∪ Y|. Dice: D = 2 |P ∩ Y| / (|P| + |Y|).',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetDiceIou',
+              caption:
+                'The exact curve holds for one image. The grey dot is the pair of test-set means; the dashed segment is the gap between it and the curve.',
+            },
+            {
+              type: 'list',
+              items: [
+                'One image: D = 2J / (1 + J), so D ≥ J, equal at 0 and 1. Dice and IoU rank images the same way.',
+                'Averages: f(mean J) = f({{iou}}) = {{diceOfIou}}, but mean D = {{dice}}. f is concave, so mean f(J) ≤ f(mean J) (Jensen); the gap grows with the spread of the per-image scores.',
+                'Consequence: report both from the same per-image scores; never convert one mean into the other.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'training',
+          kicker: '07',
+          title: 'Training',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Adam, learning rate 3·10⁻⁴.',
+                'ReduceLROnPlateau on validation Dice: learning rate × 0.2 after 2 epochs without improvement.',
+                '20 epochs; the weights kept are those of the best validation Dice (epoch 12), copied to the CPU when reached.',
+                'Augmentation: horizontal flip only, one draw for image and mask together.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetEpoch',
+              caption:
+                'model.train() and model.eval() switch BatchNorm between batch statistics and running statistics; set_grad_enabled(False) builds no graph during validation.',
+            },
+          ],
+        },
+        {
+          id: 'results',
+          kicker: '08',
+          title: 'Reading the results',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Test ({{nTest}} images): Dice {{dice}}, IoU {{iou}}, pixel accuracy {{acc}}.',
+                'Predicting background everywhere: accuracy ≈ {{trivialAcc}}, Dice 0 on every image that has an object. Pixel accuracy is not a segmentation metric.',
+                'Failures: small or ambiguous foreground; salient objects outside COCO’s 80 categories, which count as background in the ground truth.',
+                'Limits: {{input}} × {{input}} input, where thin structures vanish; one binary class; no test-time augmentation.',
+                'Reference: O. Ronneberger, P. Fischer, T. Brox, U-Net: Convolutional Networks for Biomedical Image Segmentation, MICCAI 2015.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      kicker: 'deep learning · segmentation',
+      title: 'U-Net,',
+      titleAccent: 'pièce par pièce',
+      description:
+        'Notes de cours sur le U-Net du projet COCO : convolutions avec bourrage, pooling et convolutions transposées, connexions de saut, champ réceptif, budget de paramètres et de calcul, Dice et IoU. Chaque chiffre est recalculé depuis l’architecture.',
+      sections: [
+        {
+          id: 'task',
+          kicker: '01',
+          title: 'La tâche',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Entrée : une image RVB, 3 × {{input}} × {{input}}, valeurs dans [0, 1].',
+                'Sortie : un logit z par pixel, 1 × {{input}} × {{input}}. p = σ(z) est la probabilité d’avant-plan ; masque = p > 0,5.',
+                'Vérité terrain : l’union de toutes les instances annotées de COCO ; tout le reste est du fond. Environ {{fg}} % des pixels sont de l’avant-plan.',
+                'Données : COCO val2017, les {{nImages}} images qui ont au moins une annotation → {{nTrain}} en entraînement, {{nVal}} en validation, {{nTest}} en test. Le test n’est lu qu’une fois, à la fin.',
+                'Redimensionnement : image et masque en {{input}} × {{input}} ; le masque au plus proche voisin — interpoler un masque binaire crée des valeurs qui ne sont ni 0 ni 1.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'convolution',
+          kicker: '02',
+          title: 'Convolution 3×3 avec bourrage',
+          blocks: [
+            {
+              type: 'text',
+              content: 'Côté de sortie : o = ⌊(i + 2p − k) / s⌋ + 1. Avec k = 3, p = 1, s = 1 : o = i.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetConv',
+              caption:
+                'Centré sur le premier pixel, le noyau déborde sur le bourrage : des zéros remplacent les voisins absents. Cinq positions par ligne, cinq sorties.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Poids d’une convolution : k²·C_in·C_out. Pas de biais : la BatchNorm qui suit retire la moyenne, ce qui l’annulerait, et ajoute son propre décalage β.',
+                'DoubleConv = (conv 3×3 → BatchNorm → ReLU) × 2 — le bloc de chaque étage.',
+                'Le bourrage garde chaque carte à exactement la moitié du côté du niveau au-dessus : cartes d’encodeur et de décodeur s’alignent sans recadrage. L’article d’origine utilise des convolutions sans bourrage et recadre les cartes de saut.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'resampling',
+          kicker: '03',
+          title: 'Descendre, remonter',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetResample',
+              caption:
+                'À gauche : chaque bloc 2×2 garde son maximum. À droite : chaque valeur d’entrée est multipliée par le noyau 2×2 et écrite dans son propre bloc — en avant, la plus grande valeur et le bloc qu’elle peint.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Max pooling 2×2, pas 2 : H × W → H/2 × W/2, canaux inchangés, aucun paramètre. Il garde la plus forte réponse de chaque bloc et oublie où elle était dans le bloc.',
+                'Convolution transposée 2×2, pas 2 : o = (i − 1)·s − 2p + k = 2i. Elle divise aussi les canaux par deux, C → C/2 : 4·C·C/2 poids et C/2 biais.',
+                'Noyau = pas : les blocs de sortie ne se chevauchent pas, chaque pixel de sortie reçoit exactement une contribution — pas de damier dû à un chevauchement inégal.',
+                'Quatre poolings : le côté d’entrée doit être un multiple de 2⁴ = 16, d’où {{input}}.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'architecture',
+          kicker: '04',
+          title: 'Le réseau entier',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetArchitecture',
+              caption:
+                'Tracé depuis la liste des couches : la largeur d’un bloc suit ses canaux, chaque niveau divise le côté par deux. Flèches pleines : changement de résolution ; flèches en tirets : une carte d’encodeur portée jusqu’au décodeur.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Encodeur : {{encChannels}} canaux à {{encSides}} — les canaux doublent quand le côté est divisé par deux.',
+                'Goulot : {{midChannels}} canaux à {{midSide}}².',
+                'Étage de décodeur : convolution transposée (C → C/2) → concaténation avec la carte d’encodeur de même côté (C/2 + C/2 = C) → DoubleConv (C → C/2).',
+                'Tête : convolution 1×1, {{width}} → 1, un logit par pixel. Pas de sigmoïde dans le réseau : elle est appliquée dans la perte, où log σ(z) se calcule de façon stable.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetUp',
+              caption: 'Un étage de décodeur. torch.cat sur la dimension 1 empile les canaux : C/2 venus du saut, C/2 venus d’en dessous.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetBudget',
+              caption:
+                'Part du total, par étage. Paramètres : poids, biais et BatchNorm. Multiplications-additions : les convolutions, pour une image {{input}} × {{input}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Total : {{params}} paramètres ; {{gmac}} GMAC par image.',
+                'Goulot et étage de décodeur le plus profond : {{deepShare}} % des paramètres. Une convolution 3×3 porte 9·C_in·C_out poids, et C est maximal au fond.',
+                'Le calcul est réparti également : d’un niveau au suivant, C_in·C_out est multiplié par 4 et la surface divisée par 4. Chaque niveau d’encodeur ≈ {{encLevel}} %, chaque niveau de décodeur ≈ {{decLevel}} % ; le premier étage est plus léger, avec 3 canaux d’entrée.',
+                'Largeur 64, comme dans l’article : {{params64}} paramètres, ×{{paramsRatio}}. Les paramètres croissent comme le carré de la largeur.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'receptive-field',
+          kicker: '05',
+          title: 'Champ réceptif',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'r ← r + (k − 1)·j, puis j ← j·s. r : côté du champ réceptif ; j : distance entre deux unités voisines. Les deux en pixels d’entrée.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetReceptive',
+              caption:
+                'À l’échelle de l’entrée {{input}} × {{input}}. Chaque carré est ce que voit une unité en fin d’étage ; au goulot, il est plus grand que l’image.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Fin de chaque étage d’encodeur : {{rf1}}, {{rf2}}, {{rf3}} et {{rf4}} px. Goulot : {{rfB}} px ≥ {{input}} — chaque unité du goulot dépend de toute l’image, bourrage compris.',
+                'Les mêmes {{convs}} convolutions sans pooling : 1 + 2 × {{convs}} = {{rfNoPool}} px. Le pooling double j : chaque convolution 3×3 suivante ajoute deux fois plus de contexte.',
+                'Ce que le goulot gagne en contexte, il le perd en position : une unité par bloc de {{cellSide}} × {{cellSide}}. Les connexions de saut ramènent la position à pleine résolution.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'losses',
+          kicker: '06',
+          title: 'Pertes et métriques',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'BCE : L = −(1/N) Σ [y log p + (1 − y) log(1 − p)]. Gradient par logit : ∂L/∂z = (p − y)/N — borné, et jamais nul tant que le pixel est faux.',
+                'Dice doux : D = (2 Σ p·y + ε) / (Σ p + Σ y + ε) ; perte 1 − D, par image, puis moyennée.',
+                'ε = 1 : une cible vide avec une prédiction vide donne D = 1 au lieu de 0/0.',
+                'La BCE compte des pixels : avec {{fg}} % d’avant-plan, les pixels de fond portent l’essentiel de la perte. Le Dice compte le recouvrement rapporté à l’objet : un petit objet pèse autant qu’un grand.',
+                'L’entraînement minimise BCE + Dice : des gradients lisses pour la première, la métrique visée pour le second.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'diceLoss',
+              caption: 'Sommes sur les dimensions (2, 3) : un Dice par image, puis la moyenne sur le lot.',
+            },
+            {
+              type: 'text',
+              content: 'IoU : J = |P ∩ Y| / |P ∪ Y|. Dice : D = 2 |P ∩ Y| / (|P| + |Y|).',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetDiceIou',
+              caption:
+                'La courbe exacte vaut pour une image. Le point gris est le couple des moyennes du jeu de test ; le segment en tirets, l’écart qui le sépare de la courbe.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Une image : D = 2J / (1 + J), donc D ≥ J, avec égalité en 0 et en 1. Dice et IoU classent les images dans le même ordre.',
+                'Moyennes : f(moyenne J) = f({{iou}}) = {{diceOfIou}}, mais moyenne D = {{dice}}. f est concave, donc moyenne f(J) ≤ f(moyenne J) (Jensen) ; l’écart croît avec la dispersion des scores par image.',
+                'Conséquence : donner les deux à partir des mêmes scores par image ; ne jamais convertir une moyenne en l’autre.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'training',
+          kicker: '07',
+          title: 'Entraînement',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Adam, pas d’apprentissage 3·10⁻⁴.',
+                'ReduceLROnPlateau sur le Dice de validation : pas × 0,2 après 2 époques sans progrès.',
+                '20 époques ; les poids gardés sont ceux du meilleur Dice de validation (époque 12), copiés sur le CPU au moment où il est atteint.',
+                'Augmentation : retournement horizontal seulement, un seul tirage pour l’image et le masque.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetEpoch',
+              caption:
+                'model.train() et model.eval() font passer la BatchNorm des statistiques du lot aux statistiques glissantes ; set_grad_enabled(False) ne construit aucun graphe pendant la validation.',
+            },
+          ],
+        },
+        {
+          id: 'results',
+          kicker: '08',
+          title: 'Lire les résultats',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Test ({{nTest}} images) : Dice {{dice}}, IoU {{iou}}, exactitude par pixel {{acc}}.',
+                'Prédire du fond partout : exactitude ≈ {{trivialAcc}}, Dice 0 sur chaque image qui contient un objet. L’exactitude par pixel n’est pas une métrique de segmentation.',
+                'Échecs : avant-plan petit ou ambigu ; objets saillants hors des 80 catégories de COCO, comptés comme du fond dans la vérité terrain.',
+                'Limites : entrée {{input}} × {{input}}, où les structures fines disparaissent ; une seule classe binaire ; pas d’augmentation au test.',
+                'Référence : O. Ronneberger, P. Fischer, T. Brox, U-Net: Convolutional Networks for Biomedical Image Segmentation, MICCAI 2015.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      kicker: 'Deep Learning · Segmentierung',
+      title: 'U-Net,',
+      titleAccent: 'Stück für Stück',
+      description:
+        'Kursnotizen zum U-Net des COCO-Projekts: Faltungen mit Padding, Pooling und transponierte Faltungen, Skip-Verbindungen, rezeptives Feld, Parameter- und Rechenbudget, Dice und IoU. Jede Zahl aus der Architektur neu berechnet.',
+      sections: [
+        {
+          id: 'task',
+          kicker: '01',
+          title: 'Die Aufgabe',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Eingabe: ein RGB-Bild, 3 × {{input}} × {{input}}, Werte in [0, 1].',
+                'Ausgabe: ein Logit z pro Pixel, 1 × {{input}} × {{input}}. p = σ(z) ist die Vordergrund-Wahrscheinlichkeit; Maske = p > 0,5.',
+                'Ground Truth: die Vereinigung aller annotierten COCO-Instanzen; alles andere ist Hintergrund. Etwa {{fg}} % der Pixel sind Vordergrund.',
+                'Daten: COCO val2017, die {{nImages}} Bilder mit mindestens einer Annotation → {{nTrain}} Training, {{nVal}} Validierung, {{nTest}} Test. Der Testsplit wird ein einziges Mal gelesen, am Ende.',
+                'Skalierung: Bild und Maske auf {{input}} × {{input}}; die Maske per nächstem Nachbarn — eine binäre Maske zu interpolieren erzeugt Werte, die weder 0 noch 1 sind.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'convolution',
+          kicker: '02',
+          title: '3×3-Faltung mit Padding',
+          blocks: [
+            {
+              type: 'text',
+              content: 'Ausgabeseite: o = ⌊(i + 2p − k) / s⌋ + 1. Mit k = 3, p = 1, s = 1: o = i.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetConv',
+              caption:
+                'Auf dem ersten Pixel zentriert, reicht der Kern ins Padding: Nullen ersetzen die fehlenden Nachbarn. Fünf Positionen pro Zeile, fünf Ausgaben.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Gewichte einer Faltung: k²·C_in·C_out. Kein Bias: Die folgende BatchNorm zieht den Mittelwert ab, was ihn aufheben würde, und addiert ihre eigene Verschiebung β.',
+                'DoubleConv = (Conv 3×3 → BatchNorm → ReLU) × 2 — der Block jeder Stufe.',
+                'Das Padding hält jede Karte auf genau der halben Seite der Ebene darüber: Encoder- und Decoder-Karten liegen ohne Zuschneiden übereinander. Das Originalpaper faltet ohne Padding und schneidet dafür die Skip-Karten zu.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'resampling',
+          kicker: '03',
+          title: 'Hinunter und wieder hinauf',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetResample',
+              caption:
+                'Links: Jeder 2×2-Block behält sein Maximum. Rechts: Jeder Eingabewert wird mit dem 2×2-Kern multipliziert und in seinen eigenen Block geschrieben — hervorgehoben der größte Wert und der Block, den er malt.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Max-Pooling 2×2, Schritt 2: H × W → H/2 × W/2, Kanäle unverändert, keine Parameter. Es behält die stärkste Antwort jedes Blocks und vergisst, wo im Block sie lag.',
+                'Transponierte Faltung 2×2, Schritt 2: o = (i − 1)·s − 2p + k = 2i. Sie halbiert auch die Kanäle, C → C/2: 4·C·C/2 Gewichte und C/2 Biases.',
+                'Kern = Schritt: Die Ausgabeblöcke überlappen nicht, jedes Ausgabepixel erhält genau einen Beitrag — kein Schachbrettmuster durch ungleichmäßige Überlappung.',
+                'Vier Poolings: Die Eingabeseite muss ein Vielfaches von 2⁴ = 16 sein, daher {{input}}.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'architecture',
+          kicker: '04',
+          title: 'Das ganze Netz',
+          blocks: [
+            {
+              type: 'diagram',
+              diagram: 'unetArchitecture',
+              caption:
+                'Aus der Schichtliste gezeichnet: Die Blockbreite folgt den Kanälen, jede Ebene halbiert die Seite. Durchgezogene Pfeile ändern die Auflösung; gestrichelte tragen eine Encoder-Karte hinüber zum Decoder.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Encoder: {{encChannels}} Kanäle bei {{encSides}} — die Kanäle verdoppeln sich, wenn sich die Seite halbiert.',
+                'Engpass: {{midChannels}} Kanäle bei {{midSide}}².',
+                'Decoder-Stufe: transponierte Faltung (C → C/2) → Verkettung mit der Encoder-Karte gleicher Seite (C/2 + C/2 = C) → DoubleConv (C → C/2).',
+                'Kopf: 1×1-Faltung, {{width}} → 1, ein Logit pro Pixel. Kein Sigmoid im Netz: Es wird im Verlust angewendet, wo log σ(z) stabil berechnet wird.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetUp',
+              caption: 'Eine Decoder-Stufe. torch.cat entlang Dimension 1 stapelt die Kanäle: C/2 aus dem Skip, C/2 von unten.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetBudget',
+              caption:
+                'Anteil am Gesamten, pro Stufe. Parameter: Gewichte, Biases und BatchNorm. Multiply-Adds: die Faltungen, für ein Bild von {{input}} × {{input}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Gesamt: {{params}} Parameter; {{gmac}} GMAC pro Bild.',
+                'Engpass und tiefste Decoder-Stufe: {{deepShare}} % der Parameter. Eine 3×3-Faltung hält 9·C_in·C_out Gewichte, und C ist unten am größten.',
+                'Die Rechenlast ist gleichmäßig verteilt: Von einer Ebene zur nächsten wird C_in·C_out mit 4 multipliziert und die Fläche durch 4 geteilt. Jede Encoder-Ebene ≈ {{encLevel}} %, jede Decoder-Ebene ≈ {{decLevel}} %; die erste Stufe ist mit 3 Eingangskanälen leichter.',
+                'Breite 64, wie im Paper: {{params64}} Parameter, ×{{paramsRatio}}. Die Parameter wachsen mit dem Quadrat der Breite.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'receptive-field',
+          kicker: '05',
+          title: 'Rezeptives Feld',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'r ← r + (k − 1)·j, dann j ← j·s. r: Seite des rezeptiven Felds; j: Abstand zweier benachbarter Einheiten. Beide in Eingabepixeln.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetReceptive',
+              caption:
+                'Maßstabsgetreu auf der Eingabe {{input}} × {{input}}. Jedes Quadrat ist, was eine Einheit am Ende einer Stufe sieht; im Engpass ist es größer als das Bild.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Ende jeder Encoder-Stufe: {{rf1}}, {{rf2}}, {{rf3}} und {{rf4}} px. Engpass: {{rfB}} px ≥ {{input}} — jede Einheit des Engpasses hängt vom ganzen Bild ab, Padding eingeschlossen.',
+                'Dieselben {{convs}} Faltungen ohne Pooling: 1 + 2 × {{convs}} = {{rfNoPool}} px. Pooling verdoppelt j: Jede spätere 3×3-Faltung fügt doppelt so viel Kontext hinzu.',
+                'Was der Engpass an Kontext gewinnt, verliert er an Position: eine Einheit pro Block von {{cellSide}} × {{cellSide}}. Die Skip-Verbindungen bringen die Position in voller Auflösung zurück.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'losses',
+          kicker: '06',
+          title: 'Verluste und Metriken',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'BCE: L = −(1/N) Σ [y log p + (1 − y) log(1 − p)]. Gradient pro Logit: ∂L/∂z = (p − y)/N — beschränkt und nie null, solange das Pixel falsch ist.',
+                'Weicher Dice: D = (2 Σ p·y + ε) / (Σ p + Σ y + ε); Verlust 1 − D, pro Bild, dann gemittelt.',
+                'ε = 1: Ein leeres Ziel mit leerer Vorhersage ergibt D = 1 statt 0/0.',
+                'BCE zählt Pixel: Bei {{fg}} % Vordergrund tragen die Hintergrundpixel den Großteil des Verlusts. Dice zählt die Überlappung relativ zum Objekt: Ein kleines Objekt wiegt so viel wie ein großes.',
+                'Trainiert wird auf BCE + Dice: glatte Gradienten vom ersten, die Zielmetrik vom zweiten.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'diceLoss',
+              caption: 'Summen über die Dimensionen (2, 3): ein Dice pro Bild, dann der Mittelwert über den Batch.',
+            },
+            {
+              type: 'text',
+              content: 'IoU: J = |P ∩ Y| / |P ∪ Y|. Dice: D = 2 |P ∩ Y| / (|P| + |Y|).',
+            },
+            {
+              type: 'diagram',
+              diagram: 'unetDiceIou',
+              caption:
+                'Die exakte Kurve gilt für ein Bild. Der graue Punkt ist das Paar der Testset-Mittelwerte; die gestrichelte Strecke der Abstand zur Kurve.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Ein Bild: D = 2J / (1 + J), also D ≥ J, Gleichheit bei 0 und 1. Dice und IoU ordnen Bilder gleich.',
+                'Mittelwerte: f(Mittel J) = f({{iou}}) = {{diceOfIou}}, aber Mittel D = {{dice}}. f ist konkav, also Mittel f(J) ≤ f(Mittel J) (Jensen); der Abstand wächst mit der Streuung der Werte pro Bild.',
+                'Folge: beide aus denselben Werten pro Bild angeben; nie einen Mittelwert in den anderen umrechnen.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'training',
+          kicker: '07',
+          title: 'Training',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Adam, Lernrate 3·10⁻⁴.',
+                'ReduceLROnPlateau auf dem Validierungs-Dice: Lernrate × 0,2 nach 2 Epochen ohne Verbesserung.',
+                '20 Epochen; behalten werden die Gewichte des besten Validierungs-Dice (Epoche 12), beim Erreichen auf die CPU kopiert.',
+                'Augmentierung: nur horizontales Spiegeln, ein Zug für Bild und Maske zusammen.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'unetEpoch',
+              caption:
+                'model.train() und model.eval() schalten die BatchNorm zwischen Batch-Statistiken und laufenden Statistiken um; set_grad_enabled(False) baut während der Validierung keinen Graphen.',
+            },
+          ],
+        },
+        {
+          id: 'results',
+          kicker: '08',
+          title: 'Die Ergebnisse lesen',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Test ({{nTest}} Bilder): Dice {{dice}}, IoU {{iou}}, Pixelgenauigkeit {{acc}}.',
+                'Überall Hintergrund vorhersagen: Genauigkeit ≈ {{trivialAcc}}, Dice 0 auf jedem Bild mit einem Objekt. Pixelgenauigkeit ist keine Segmentierungsmetrik.',
+                'Fehlschläge: kleiner oder mehrdeutiger Vordergrund; auffällige Objekte außerhalb der 80 COCO-Kategorien, die in der Ground Truth als Hintergrund zählen.',
+                'Grenzen: Eingabe {{input}} × {{input}}, in der dünne Strukturen verschwinden; eine einzige binäre Klasse; keine Test-Time-Augmentierung.',
+                'Referenz: O. Ronneberger, P. Fischer, T. Brox, U-Net: Convolutional Networks for Biomedical Image Segmentation, MICCAI 2015.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+/** Un nombre à décimales fixes, avec le séparateur de la langue. */
+const fixed = (x: number, digits: number) => (locale: Locale) =>
+  x.toFixed(digits).replace('.', locale === 'en' ? '.' : ',');
+
+/** Une liste de valeurs séparées par des virgules, avec la conjonction de la langue. */
+const joined = (values: string[]) => (locale: Locale) => list(values, locale);
+
+/**
+ * Les chiffres de la note U-Net : l'architecture recalculée par
+ * `src/lib/unet.ts`, et les résultats mesurés du projet. Chaque affirmation
+ * du texte qui en dépend est vérifiée ici.
+ */
+const unetFacts = (): Record<string, Fact> => {
+  const { input, width, depth } = unetLib.config;
+  const all = unetLib.stages();
+  const enc = all.filter((s) => s.side === 'enc');
+  const mid = all.find((s) => s.side === 'mid')!;
+  const P = unetLib.totalParams();
+  const P64 = unetLib.totalParams(64);
+  const M = unetLib.totalMacs();
+  const deep = all.filter((s) => s.side === 'mid' || (s.side === 'dec' && s.level === depth - 1));
+  const deepShare = (100 * deep.reduce((n, s) => n + s.params, 0)) / P;
+  const share = (s: unetLib.Stage) => (100 * s.macs) / M;
+  const encLevels = enc.slice(1).map(share);
+  const decLevels = all.filter((s) => s.side === 'dec').map(share);
+  const rf = unetLib.stageReceptive();
+  const convs = unetLib.receptiveField().filter((e) => e.layer.includes('conv')).length;
+  const r = unetLib.results;
+  const f = unetLib.diceOfIou(r.iou);
+
+  claim(Math.round(P / 1e4) === 776, 'le réseau compte 7,76 M de paramètres, comme dans le projet');
+  claim(Math.round(P64 / 1e6) === 31, 'à largeur 64, le réseau de l’article compte 31 M de paramètres');
+  claim(deepShare > 50, 'le goulot et l’étage de décodeur le plus profond portent la majorité des paramètres');
+  claim(Math.max(...encLevels) - Math.min(...encLevels) < 0.5, 'chaque niveau d’encodeur (hors le premier) coûte autant');
+  claim(Math.max(...decLevels) - Math.min(...decLevels) < 0.5, 'chaque niveau de décodeur coûte autant');
+  claim(rf.at(-1)!.r >= input, 'chaque unité du goulot voit toute l’image');
+  claim(f >= r.dice, 'la moyenne des Dice ne dépasse pas f(moyenne des IoU) — Jensen');
+  claim(r.accuracy > 1 - r.foreground, 'le modèle fait mieux que « tout est du fond »');
+  claim(r.split.train + r.split.val + r.split.test === 4952, 'les trois jeux font les 4 952 images annotées de val2017');
+
+  return {
+    input,
+    width,
+    fg: Math.round(r.foreground * 100),
+    nImages: r.split.train + r.split.val + r.split.test,
+    nTrain: r.split.train,
+    nVal: r.split.val,
+    nTest: r.split.test,
+    encChannels: joined(enc.map((s) => String(s.channels))),
+    encSides: joined(enc.map((s) => `${s.size}²`)),
+    midChannels: mid.channels,
+    midSide: mid.size,
+    params: P,
+    params64: P64,
+    paramsRatio: fixed(P64 / P, 1),
+    gmac: fixed(M / 1e9, 2),
+    deepShare: Math.round(deepShare),
+    encLevel: fixed(encLevels[0], 1),
+    decLevel: fixed(decLevels[0], 1),
+    rf1: rf[0].r,
+    rf2: rf[1].r,
+    rf3: rf[2].r,
+    rf4: rf[3].r,
+    rfB: rf.at(-1)!.r,
+    convs,
+    rfNoPool: 1 + 2 * convs,
+    cellSide: 2 ** depth,
+    dice: fixed(r.dice, 3),
+    iou: fixed(r.iou, 3),
+    acc: fixed(r.accuracy, 3),
+    diceOfIou: fixed(f, 3),
+    trivialAcc: fixed(1 - r.foreground, 2),
+  };
+};
+
 /** Un nombre à la manière de la langue ; les très petits en notation 10⁻ⁿ. */
 function num(x: number | string, locale: Locale): string {
   if (typeof x === 'string') x = Number(x);
@@ -1639,11 +2401,11 @@ function fill(text: string, facts: Record<string, Fact>, locale: Locale): string
 }
 
 /*
- * L'ordre d'affichage : le cours d'optique, puis le banc d'essai des méthodes
- * de descente. Les notes SVM viendront des deux notebooks de TP (`ocvx/`) une
+ * L'ordre d'affichage : le cours d'optique, le banc d'essai des méthodes de
+ * descente, puis les notes U-Net. Les notes SVM viendront des deux notebooks de TP (`ocvx/`) une
  * fois ceux-ci complétés.
  */
-const all: NoteDef[] = [optics, descent];
+const all: NoteDef[] = [optics, descent, unet];
 
 /** En production, les brouillons n'existent pas : ni page, ni ligne, ni lien. */
 const definitions = all.filter((def) => !def.draft || import.meta.env.DEV);

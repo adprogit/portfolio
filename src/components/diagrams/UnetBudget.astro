@@ -1,0 +1,39 @@
+---
+/**
+ * Note U-Net — où sont les paramètres, où est le calcul. Deux séries par
+ * étage, en part du total : les paramètres (poids, biais, BatchNorm) et les
+ * multiplications-additions pour une image. Tout vient de `stages()`.
+ */
+import BarPanel from '../plots/BarPanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { stages, totalMacs, totalParams } from '../../lib/unet';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const shown = stages().filter((s) => s.side !== 'head');
+const P = totalParams();
+const M = totalMacs();
+const pct = (v: number, total: number) => (100 * v) / total;
+const top = Math.ceil(Math.max(...shown.map((s) => pct(s.params, P))) / 10) * 10;
+---
+
+<Legend
+  entries={[
+    { key: 'params', label: t('diagram.unet.params') },
+    { key: 'macs', label: t('diagram.unet.compute') },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <BarPanel
+    alt={t('diagram.unetBudget.alt')}
+    categories={shown.map((s) => (s.side === 'mid' ? 'mid' : s.name))}
+    series={[
+      { key: 'params', values: shown.map((s) => pct(s.params, P)) },
+      { key: 'macs', values: shown.map((s) => pct(s.macs, M)) },
+    ]}
+    y={{ domain: [0, top], label: t('diagram.unet.share') }}
+  />
+</div>

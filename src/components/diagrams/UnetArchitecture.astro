@@ -1,0 +1,117 @@
+---
+/**
+ * Note U-Net — l'architecture, en U. Rien n'est placé à la main : chaque bloc
+ * vient de `stages()` (`src/lib/unet.ts`), sa largeur suit ses canaux, sa
+ * hauteur dans la figure suit son niveau. Changer la profondeur ou la largeur
+ * du réseau redessine la figure.
+ *
+ * Trois flèches, trois couleurs : le pooling en neutre, la convolution
+ * transposée dans l'accent, le saut en cyan (le rôle « sonde » des schémas :
+ * ce qui revient chercher une information ailleurs).
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { arrowHead, type Vec } from '../../lib/diagram-geometry';
+import { config, stages } from '../../lib/unet';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const all = stages();
+const depth = config.depth;
+const H = 22;
+const levelY = (l: number) => 62 + l * 44;
+const width = (l: number) => 26 + 10 * l;
+// Les deux branches se rejoignent au centre (320) : le goulot est commun.
+const encX = (l: number) => 110 + (l * 210) / depth;
+const decX = (l: number) => 530 - (l * 210) / depth;
+
+const box = (s: (typeof all)[number]) => {
+  const cx = s.side === 'dec' ? decX(s.level) : encX(s.level);
+  const w = width(s.level);
+  return { ...s, cx, cy: levelY(s.level), w, x: cx - w / 2, y: levelY(s.level) - H / 2 };
+};
+const blocks = all.filter((s) => s.side !== 'head').map(box);
+const enc = (l: number) => blocks.find((b) => b.side !== 'dec' && b.level === l)!;
+const dec = (l: number) => blocks.find((b) => b.side === 'dec' && b.level === l)!;
+
+const label = (s: { channels: number; size: number }) => `${s.channels} · ${s.size}²`;
+
+// Descente : du coin bas d'un bloc au coin haut du suivant.
+const pools = Array.from({ length: depth }, (_, l) => {
+  const a = enc(l);
+  const b = enc(l + 1);
+  return [[a.cx + 6, a.y + H] as Vec, [b.cx - 6, b.y] as Vec];
+});
+const ups = Array.from({ length: depth }, (_, l) => {
+  const a = l + 1 === depth ? enc(depth) : dec(l + 1);
+  const b = dec(l);
+  return [[a.cx + 6, a.y] as Vec, [b.cx - 6, b.y + H] as Vec];
+});
+const skips = Array.from({ length: depth }, (_, l) => {
+  const a = enc(l);
+  const b = dec(l);
+  return [[a.x + a.w + 6, a.cy] as Vec, [b.x - 6, b.cy] as Vec];
+});
+
+const first = enc(0);
+const last = dec(0);
+const head = all.find((s) => s.side === 'head')!;
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 306" role="img" aria-label={t('diagram.unetArchitecture.alt')}>
+  {skips.map(([a, b]) => (
+    <g>
+      <line class="d-probe" stroke-dasharray="4 4" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+      <polygon class="d-dot-probe" points={arrowHead(a, b)} />
+    </g>
+  ))}
+  {pools.map(([a, b]) => (
+    <g>
+      <line class="d-line" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+      <polygon class="d-head" points={arrowHead(a, b, 6)} />
+    </g>
+  ))}
+  {ups.map(([a, b]) => (
+    <g>
+      <line class="d-ray" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+      <polygon class="d-head-accent" points={arrowHead(a, b, 6)} />
+    </g>
+  ))}
+
+  {blocks.map((b) => (
+    <g>
+      <rect class="d-shape" x={b.x} y={b.y} width={b.w} height={H} rx="3" />
+      <text
+        class="d-label"
+        x={b.side === 'dec' ? b.x + b.w + 8 : b.side === 'mid' ? b.cx : b.x - 8}
+        y={b.side === 'mid' ? b.y + H + 16 : b.cy + 4}
+        text-anchor={b.side === 'dec' ? 'start' : b.side === 'mid' ? 'middle' : 'end'}
+      >{b.side === 'mid' ? `${t('diagram.unet.bottleneck')} · ${label(b)}` : label(b)}</text>
+    </g>
+  ))}
+
+  {/* Entrée et sortie, au-dessus des premiers blocs : leurs côtés portent déjà les libellés. */}
+  <line class="d-line" x1={first.cx} y1={first.y - 22} x2={first.cx} y2={first.y - 4} />
+  <polygon class="d-head" points={arrowHead([first.cx, first.y - 22], [first.cx, first.y - 2], 6)} />
+  <text class="d-label" x={first.cx} y={first.y - 28} text-anchor="middle">
+    {t('diagram.unet.input')} · {config.inChannels} · {config.input}²
+  </text>
+  <line class="d-ray" x1={last.cx} y1={last.y - 2} x2={last.cx} y2={last.y - 20} />
+  <polygon class="d-head-accent" points={arrowHead([last.cx, last.y - 2], [last.cx, last.y - 22], 6)} />
+  <text class="d-label-accent" x={last.cx} y={last.y - 28} text-anchor="middle">
+    {t('diagram.unet.output')} · conv 1×1 · {head.channels} · {head.size}²
+  </text>
+
+  {/* Légende, dans le coin libre en bas à gauche. */}
+  <g>
+    <line class="d-line" x1="24" y1="242" x2="48" y2="242" />
+    <text class="d-label" x="56" y="246">{t('diagram.unet.pool')}</text>
+    <line class="d-ray" x1="24" y1="260" x2="48" y2="260" />
+    <text class="d-label-accent" x="56" y="264">{t('diagram.unet.up')}</text>
+    <line class="d-probe" stroke-dasharray="4 4" x1="24" y1="278" x2="48" y2="278" />
+    <text class="d-label-probe" x="56" y="282">{t('diagram.unet.skip')}</text>
+    <rect class="d-shape" x="28" y="292" width="16" height="10" rx="2" />
+    <text class="d-label" x="56" y="300">{t('diagram.unet.box')}</text>
+  </g>
+</svg>

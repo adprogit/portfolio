@@ -67,6 +67,9 @@ const ROUTES = [
   '/notes/descent-methods-benchmark/',
   '/fr/notes/descent-methods-benchmark/',
   '/de/notes/descent-methods-benchmark/',
+  '/notes/unet-piece-by-piece/',
+  '/fr/notes/unet-piece-by-piece/',
+  '/de/notes/unet-piece-by-piece/',
 ];
 
 const PORT = 4331 + (process.pid % 200);

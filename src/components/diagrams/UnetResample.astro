@@ -1,0 +1,102 @@
+---
+/**
+ * Note U-Net — descendre et remonter. À gauche, le max pooling 2×2 : chaque
+ * bloc garde son maximum. À droite, la convolution transposée 2×2 de pas 2 :
+ * chaque valeur d'entrée peint son propre bloc 2×2 à travers le noyau. Toutes
+ * les valeurs affichées sont calculées (`src/lib/unet.ts`).
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { arrowHead } from '../../lib/diagram-geometry';
+import { maxPool2, poolInput, transposedConv2, upKernel } from '../../lib/unet';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const cell = 28;
+const pooled = maxPool2(poolInput);
+const small = pooled.map((row) => row.map((c) => c.value));
+const up = transposedConv2(small, upKernel);
+
+// Le pixel suivi à droite : le plus grand de la carte réduite, et son bloc.
+let focus: [number, number] = [0, 0];
+small.forEach((row, r) => row.forEach((v, c) => v > small[focus[0]][focus[1]] && (focus = [r, c])));
+
+const grid = (x0: number, y0: number, m: number[][], size = cell) =>
+  m.flatMap((row, r) => row.map((v, c) => ({ x: x0 + c * size, y: y0 + r * size, v, r, c })));
+
+const P = { x: 24, y: 64 };
+const Q = { x: 196, y: 64 + cell };
+const U = { x: 336, y: 64 + cell };
+const K = { x: 396, y: 34, cell: 18 };
+const V = { x: 452, y: 64 };
+const mid = 64 + 2 * cell;
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.unetResample.alt')}>
+  {/* Max pooling */}
+  {grid(P.x, P.y, poolInput).map(({ x, y }) => <rect class="d-iso" x={x} y={y} width={cell} height={cell} />)}
+  {[0, 1].flatMap((r) => [0, 1].map((c) => (
+    <rect class="d-line" x={P.x + 2 * c * cell} y={P.y + 2 * r * cell} width={2 * cell} height={2 * cell} />
+  )))}
+  {pooled.flat().map(({ at: [r, c] }) => (
+    <rect class="d-focus" x={P.x + c * cell + 3} y={P.y + r * cell + 3} width={cell - 6} height={cell - 6} />
+  ))}
+  {grid(P.x, P.y, poolInput).map(({ x, y, v }) => (
+    <text class="d-label d-bare" x={x + cell / 2} y={y + cell / 2 + 4} text-anchor="middle">{v}</text>
+  ))}
+
+  <line class="d-line" x1={P.x + 4 * cell + 8} y1={mid} x2={Q.x - 10} y2={mid} />
+  <polygon class="d-head" points={arrowHead([P.x + 4 * cell + 8, mid], [Q.x - 10, mid])} />
+
+  {grid(Q.x, Q.y, small).map(({ x, y, v }) => (
+    <g>
+      <rect class="d-line" x={x} y={y} width={cell} height={cell} />
+      <text class="d-label-accent d-bare" x={x + cell / 2} y={y + cell / 2 + 4} text-anchor="middle">{v}</text>
+    </g>
+  ))}
+  <text class="d-label" x={P.x} y="20">{t('diagram.unet.maxPool')}</text>
+  <text class="d-label" x={P.x} y="222">4 × 4 → 2 × 2</text>
+  <text class="d-label" x={P.x} y="244">H × W → H/2 × W/2</text>
+
+  {/* Convolution transposée */}
+  {grid(U.x, U.y, small).map(({ x, y, v, r, c }) => (
+    <g>
+      <rect class={r === focus[0] && c === focus[1] ? 'd-focus' : 'd-line'} x={x} y={y} width={cell} height={cell} />
+      <text class="d-label d-bare" x={x + cell / 2} y={y + cell / 2 + 4} text-anchor="middle">{v}</text>
+    </g>
+  ))}
+
+  {grid(K.x, K.y, upKernel, K.cell).map(({ x, y, v }) => (
+    <g>
+      <rect class="d-iso" x={x} y={y} width={K.cell} height={K.cell} />
+      <text class="d-label d-bare" x={x + K.cell / 2} y={y + K.cell / 2 + 4} text-anchor="middle">{v}</text>
+    </g>
+  ))}
+  <text class="d-label" x={K.x + 2 * K.cell + 8} y={K.y + K.cell + 4}>{t('diagram.unet.kernel')}</text>
+
+  <line class="d-line" x1={U.x + 2 * cell + 8} y1={mid} x2={V.x - 10} y2={mid} />
+  <polygon class="d-head" points={arrowHead([U.x + 2 * cell + 8, mid], [V.x - 10, mid])} />
+
+  {grid(V.x, V.y, up).map(({ x, y }) => <rect class="d-iso" x={x} y={y} width={cell} height={cell} />)}
+  {[0, 1].flatMap((r) => [0, 1].map((c) => (
+    <rect
+      class={r === focus[0] && c === focus[1] ? 'd-focus' : 'd-line'}
+      x={V.x + 2 * c * cell}
+      y={V.y + 2 * r * cell}
+      width={2 * cell}
+      height={2 * cell}
+    />
+  )))}
+  {grid(V.x, V.y, up).map(({ x, y, v, r, c }) => (
+    <text
+      class={Math.floor(r / 2) === focus[0] && Math.floor(c / 2) === focus[1] ? 'd-label-accent d-bare' : 'd-label d-bare'}
+      x={x + cell / 2}
+      y={y + cell / 2 + 4}
+      text-anchor="middle"
+    >{v}</text>
+  ))}
+  <text class="d-label" x={U.x} y="20">{t('diagram.unet.upConv')}</text>
+  <text class="d-label" x={U.x} y="222">2 × 2 → 4 × 4</text>
+  <text class="d-label" x={U.x} y="244">o = (i − 1)·s − 2p + k = 2i</text>
+</svg>

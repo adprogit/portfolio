@@ -896,6 +896,13 @@
     stroke-linecap: round;
   }
 
+  /* Ce que le texte désigne dans une grille : un contour dans l'accent, jamais un aplat. */
+  .d-focus {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.25;
+  }
+
   /* Le pas décisif d'une marche : même cercle, trait plein et épaissi. */
   .d-min {
     fill: none;
@@ -1142,6 +1149,11 @@
   .s-n5 { --s: var(--color-accent-yellow); }
   .s-n25 { --s: var(--color-accent-pink); }
   .s-n75 { --s: var(--color-accent-purple); }
+  /* La note U-Net : paramètres contre calcul, courbe exacte contre mesure. */
+  .s-params { --s: var(--color-accent-orange); }
+  .s-macs { --s: var(--color-accent-cyan); }
+  .s-exact { --s: var(--color-accent-orange); }
+  .s-measured { --s: var(--color-ink-soft); }
 
   :is(.plot, .legend-swatch) .p-line {
     fill: none;
