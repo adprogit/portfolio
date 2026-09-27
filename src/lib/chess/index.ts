@@ -7,8 +7,13 @@
  * reconstruit rien : deux tampons sont réécrits — les 32 pièces et les 64
  * cases de la grille — et l'image est redemandée.
  *
- * Le rendu est **à la demande** : rien n'est dessiné tant que la position, la
- * taille ou le curseur ne bougent pas. Un échiquier immobile ne coûte rien.
+ * Le rendu est **à la demande** et **progressif** : la scène ne bouge
+ * qu'entre deux interactions, alors chaque image ajoute un échantillon à une
+ * texture d'accumulation, à la résolution native de l'écran, jusqu'aux 16
+ * échantillons par pixel du C++. Pendant un mouvement du curseur, un seul
+ * échantillon à une résolution calibrée sur le temps GPU mesuré ; à l'arrêt,
+ * la qualité remonte d'elle-même. Un échiquier immobile et affiné ne coûte
+ * plus rien.
  */
 
 import { compileModule, requestSharedGpu, type SharedGpu } from '../gpu/device';
@@ -16,6 +21,7 @@ import {
   CELL_BYTES,
   MAX_PIECES,
   PIECE_BYTES,
+  PRESENT,
   SHADER,
   UNIFORM_BYTES,
 } from './shader-wgsl';
@@ -38,15 +44,36 @@ const PIECE_Y = 4;
 /** `BBOX_R` de `main.cpp` : rayon utilisé pour remplir la grille. */
 const BBOX_R = 8;
 
-/**
- * Budget de pixels. La scène est bien plus lourde que le pion de l'accueil
- * (six champs composés, une marche d'ombre par impact) : on vise plus bas et
- * on laisse le CSS agrandir.
- */
-const MAX_PIXELS = 180_000;
+/* ── Qualité ─────────────────────────────────────────────────────── */
 
-/** Au-delà, la première image est jugée trop chère et la résolution baisse. */
-const SLOW_FIRST_FRAME_MS = 120;
+/** Au-delà de deux pixels physiques par pixel CSS, l'œil ne gagne plus rien. */
+const MAX_DPR = 2;
+/** Plafond absolu : un canvas très large sur un écran 5K. */
+const MAX_PIXELS = 4_000_000;
+/** `SAMPLES_PER_PIXEL` de main.cpp : l'image au repos est finie à 16. */
+const SAMPLES = 16;
+/** Budget d'une image pendant un mouvement du curseur. */
+const INTERACTIVE_MS = 20;
+/**
+ * Un échantillon pleine résolution plus long que ça fait saccader la page (et
+ * un pilote peut couper un shader trop long) : la résolution de repos baisse.
+ */
+const MAX_SAMPLE_MS = 90;
+/** Plancher de la résolution de repos, en part de la résolution native. */
+const MIN_QUALITY = 0.35;
+/** Somme de 16 couleurs linéaires : un demi-flottant suffit, et se mélange partout. */
+const ACCUM_FORMAT: GPUTextureFormat = 'rgba16float';
+
+/** Suite de Halton : des décalages sous-pixel bien répartis, sans hasard. */
+function halton(index: number, base: number): number {
+  let f = 1;
+  let r = 0;
+  for (let i = index; i > 0; i = Math.floor(i / base)) {
+    f /= base;
+    r += f * (i % base);
+  }
+  return r;
+}
 
 export interface ChessHandle {
   /** Nombre de demi-coups jouables, position initiale comprise. */
@@ -66,21 +93,49 @@ export interface ChessHandle {
  */
 export type ChessFailure = 'unsupported' | 'failed';
 
-/** Pipeline de l'échiquier, construit une fois pour le périphérique partagé. */
-let pipeline: Promise<GPURenderPipeline | null> | null = null;
+interface Pipelines {
+  /** La marche : un échantillon, **ajouté** à la texture d'accumulation. */
+  march: GPURenderPipeline;
+  /** La moyenne et le gamma, vers le canvas. */
+  present: GPURenderPipeline;
+  sampler: GPUSampler;
+}
 
-async function buildPipeline(shared: SharedGpu): Promise<GPURenderPipeline | null> {
+/** Pipelines de l'échiquier, construits une fois pour le périphérique partagé. */
+let pipelines: Promise<Pipelines | null> | null = null;
+
+async function buildPipelines(shared: SharedGpu): Promise<Pipelines | null> {
   try {
-    const module = await compileModule(shared.device, SHADER, 'chess-board');
-    if (!module) return null;
+    const { device } = shared;
+    const [marchModule, presentModule] = await Promise.all([
+      compileModule(device, SHADER, 'chess-board'),
+      compileModule(device, PRESENT, 'chess-present'),
+    ]);
+    if (!marchModule || !presentModule) return null;
 
-    return await shared.device.createRenderPipelineAsync({
-      label: 'chess-board',
-      layout: 'auto',
-      vertex: { module, entryPoint: 'vs_main' },
-      fragment: { module, entryPoint: 'fs_main', targets: [{ format: shared.format }] },
-      primitive: { topology: 'triangle-list' },
-    });
+    const add: GPUBlendComponent = { srcFactor: 'one', dstFactor: 'one', operation: 'add' };
+    const [march, present] = await Promise.all([
+      device.createRenderPipelineAsync({
+        label: 'chess-board',
+        layout: 'auto',
+        vertex: { module: marchModule, entryPoint: 'vs_main' },
+        fragment: {
+          module: marchModule,
+          entryPoint: 'fs_main',
+          targets: [{ format: ACCUM_FORMAT, blend: { color: add, alpha: add } }],
+        },
+        primitive: { topology: 'triangle-list' },
+      }),
+      device.createRenderPipelineAsync({
+        label: 'chess-present',
+        layout: 'auto',
+        vertex: { module: presentModule, entryPoint: 'vs_present' },
+        fragment: { module: presentModule, entryPoint: 'fs_present', targets: [{ format: shared.format }] },
+        primitive: { topology: 'triangle-list' },
+      }),
+    ]);
+    const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+    return { march, present, sampler };
   } catch {
     return null;
   }
@@ -97,8 +152,8 @@ export async function mountChessBoard(
   if (!shared) return 'unsupported';
   if (shared.lost) return 'failed';
 
-  pipeline ??= buildPipeline(shared);
-  const built = await pipeline;
+  pipelines ??= buildPipelines(shared);
+  const built = await pipelines;
   if (!built) return 'failed';
 
   const context = canvas.getContext('webgpu');
@@ -134,7 +189,7 @@ export async function mountChessBoard(
 
   const bindGroup = device.createBindGroup({
     label: 'chess',
-    layout: built.getBindGroupLayout(0),
+    layout: built.march.getBindGroupLayout(0),
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
       { binding: 1, resource: { buffer: pieceBuffer } },
@@ -203,53 +258,108 @@ export async function mountChessBoard(
     device.queue.writeBuffer(cellBuffer, 0, cellData);
   };
 
+  /* ── Cibles d'accumulation ────────────────────────────────────── */
+
+  interface Target {
+    texture: GPUTexture;
+    view: GPUTextureView;
+    /** Lue par la présentation. */
+    bind: GPUBindGroup;
+    width: number;
+    height: number;
+  }
+
+  /** Une texture flottante où les échantillons s'additionnent. */
+  const makeTarget = (width: number, height: number): Target => {
+    const texture = device.createTexture({
+      label: 'chess accumulation',
+      size: { width, height },
+      format: ACCUM_FORMAT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    const view = texture.createView();
+    const bind = device.createBindGroup({
+      layout: built.present.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: view },
+        { binding: 1, resource: built.sampler },
+      ],
+    });
+    return { texture, view, bind, width, height };
+  };
+
+  /** Renvoie `current` s'il a déjà la bonne taille, sinon une cible neuve. */
+  const sized = (current: Target | null, width: number, height: number): Target => {
+    if (current && current.width === width && current.height === height) return current;
+    current?.texture.destroy();
+    return makeTarget(width, height);
+  };
+
+  /** Au repos : résolution native, affinée jusqu'à 16 échantillons. */
+  let still: Target | null = null;
+  /** En mouvement : un échantillon, plus petit, agrandi par la présentation. */
+  let moving: Target | null = null;
+
   /* ── Boucle ───────────────────────────────────────────────────── */
 
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const finePointer = window.matchMedia('(pointer: fine)');
 
-  let scale = Math.min(window.devicePixelRatio || 1, 1.5);
   let frame = 0;
   let alive = true;
   let visible = true;
   let running = false;
-  let dirty = true;
   let painted = false;
+
+  /** Échantillons déjà accumulés dans `still` pour la vue courante. */
+  let samples = 0;
+  /** Un échantillon est en vol : on n'en empile pas un second derrière. */
+  let busy = false;
+  /** Part de la résolution native gardée au repos ; fixée par la mesure. */
+  let quality = 1;
+  /**
+   * La première image se fait petite, et sert de mesure : on ne lance pas un
+   * échantillon pleine résolution sans savoir ce qu'il coûtera. Sur un GPU
+   * intégré, il pourrait figer la page.
+   */
   let calibrated = false;
+  /** Part de la résolution du canvas pendant un mouvement ; calibrée à la mesure. */
+  let motionScale = 0.35;
 
   const pointer = { x: 0, y: 0 };
   const aim = { x: 0, y: 0 };
 
+  /** Le canvas prend la résolution native de l'écran, dans la limite du plafond. */
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
 
-    const budget = Math.sqrt(MAX_PIXELS / (rect.width * rect.height));
-    const ratio = Math.min(scale, Math.max(budget, 0.3));
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    const cap = Math.sqrt(MAX_PIXELS / (rect.width * rect.height));
+    const ratio = Math.min(dpr, cap);
     const width = Math.max(1, Math.round(rect.width * ratio));
     const height = Math.max(1, Math.round(rect.height * ratio));
 
     if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
-      dirty = true;
+      samples = 0;
     }
   };
 
-  const draw = () => {
-    if (!alive || shared.lost) return;
-    if (canvas.width < 1 || canvas.height < 1) return;
-
+  /** Ajoute un échantillon à `target`, puis présente sa moyenne. */
+  const render = (target: Target, sample: number, onDone: (ms: number) => void) => {
     // La caméra du C++ est fixe ; le curseur ne fait que la décaler autour du
     // plateau, ce qui laisse voir le relief des pièces.
     const angle = pointer.x * 0.6;
     const halfWidth = Math.tan(((HFOV * 0.5) * Math.PI) / 180);
-    const halfHeight = (halfWidth * canvas.height) / canvas.width;
+    const halfHeight = (halfWidth * target.height) / target.width;
 
-    uniformF32[0] = canvas.width;
-    uniformF32[1] = canvas.height;
-    uniformF32[2] = pointer.x;
-    uniformF32[3] = pointer.y;
+    uniformF32[0] = target.width;
+    uniformF32[1] = target.height;
+    // Premier échantillon au centre du pixel, comme la première passe du C++.
+    uniformF32[2] = sample ? halton(sample, 2) - 0.5 : 0;
+    uniformF32[3] = sample ? halton(sample, 3) - 0.5 : 0;
     uniformF32[4] = Math.sin(angle) * EYE_RADIUS;
     uniformF32[5] = EYE_HEIGHT + pointer.y * 22;
     uniformF32[6] = -Math.cos(angle) * EYE_RADIUS;
@@ -265,7 +375,24 @@ export async function mountChessBoard(
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
     const encoder = device.createCommandEncoder();
-    const pass = encoder.beginRenderPass({
+
+    const march = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: target.view,
+          // Le premier échantillon remplace, les suivants s'ajoutent.
+          loadOp: sample ? 'load' : 'clear',
+          storeOp: 'store',
+          clearValue: { r: 0, g: 0, b: 0, a: 0 },
+        },
+      ],
+    });
+    march.setPipeline(built.march);
+    march.setBindGroup(0, bindGroup);
+    march.draw(3);
+    march.end();
+
+    const present = encoder.beginRenderPass({
       colorAttachments: [
         {
           view: context.getCurrentTexture().createView(),
@@ -275,10 +402,11 @@ export async function mountChessBoard(
         },
       ],
     });
-    pass.setPipeline(built);
-    pass.setBindGroup(0, bindGroup);
-    pass.draw(3);
-    pass.end();
+    present.setPipeline(built.present);
+    present.setBindGroup(0, target.bind);
+    present.draw(3);
+    present.end();
+
     device.queue.submit([encoder.finish()]);
 
     if (!painted) {
@@ -286,53 +414,99 @@ export async function mountChessBoard(
       canvas.dataset.ready = 'true';
     }
 
-    // Une seule mesure, sur la première image : le coût d'un dessin ne se lit
-    // pas côté processeur, il faut attendre que le GPU ait fini.
-    if (!calibrated) {
-      calibrated = true;
-      const started = performance.now();
-      void device.queue.onSubmittedWorkDone().then(() => {
-        if (!alive) return;
-        if (performance.now() - started > SLOW_FIRST_FRAME_MS && scale > 0.5) {
-          scale = Math.max(0.5, scale * 0.7);
-          request();
-        }
-      });
-    }
+    // Le coût d'un dessin ne se lit pas côté processeur : il faut attendre que
+    // le GPU ait fini. C'est aussi ce qui empêche d'empiler du travail.
+    busy = true;
+    const started = performance.now();
+    void device.queue.onSubmittedWorkDone().then(() => {
+      busy = false;
+      if (alive) onDone(performance.now() - started);
+    });
   };
 
   const loop = () => {
-    if (!alive || !visible) {
+    if (!alive || !visible || shared.lost) {
       running = false;
       return;
     }
 
     const dx = aim.x - pointer.x;
     const dy = aim.y - pointer.y;
-    const moving = Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001;
+    const inMotion = Math.abs(dx) > 0.001 || Math.abs(dy) > 0.001;
 
-    if (moving) {
-      pointer.x += dx * 0.09;
-      pointer.y += dy * 0.09;
-      dirty = true;
-    }
-
-    if (dirty) {
-      dirty = false;
+    if (!busy) {
       resize();
-      draw();
+      if (inMotion) {
+        pointer.x += dx * 0.09;
+        pointer.y += dy * 0.09;
+        samples = 0;
+
+        const scale = Math.min(motionScale, quality);
+        moving = sized(
+          moving,
+          Math.max(1, Math.round(canvas.width * scale)),
+          Math.max(1, Math.round(canvas.height * scale))
+        );
+        const pixels = moving.width * moving.height;
+        render(moving, 0, (ms) => calibrate(ms, pixels));
+      } else if (!calibrated) {
+        moving = sized(
+          moving,
+          Math.max(1, Math.round(canvas.width * motionScale)),
+          Math.max(1, Math.round(canvas.height * motionScale))
+        );
+        const pixels = moving.width * moving.height;
+        render(moving, 0, (ms) => {
+          calibrate(ms, pixels);
+          calibrated = true;
+          request();
+        });
+      } else if (samples < SAMPLES) {
+        still = sized(
+          still,
+          Math.max(1, Math.round(canvas.width * quality)),
+          Math.max(1, Math.round(canvas.height * quality))
+        );
+        const pixels = still.width * still.height;
+        render(still, samples++, (ms) => {
+          calibrate(ms, pixels);
+          // Nettement trop lent pour la page (la mesure a de la marge) : on
+          // baisse la résolution de repos et on reprend l'affinage.
+          if (ms > MAX_SAMPLE_MS * 1.5 && quality > MIN_QUALITY) {
+            quality = Math.max(MIN_QUALITY, quality * Math.sqrt(MAX_SAMPLE_MS / ms));
+            samples = 0;
+            request();
+          }
+        });
+      }
     }
 
-    if (moving) {
+    if (busy || inMotion || samples < SAMPLES) {
       frame = requestAnimationFrame(loop);
     } else {
       running = false;
     }
   };
 
-  /** Demande une image. Sans rien à animer, la boucle s'arrête aussitôt. */
-  function request() {
-    dirty = true;
+  /**
+   * Le temps d'un échantillon donne le coût d'un pixel ; on en déduit la
+   * résolution qui tient dans le budget d'une image en mouvement.
+   */
+  const calibrate = (ms: number, pixels: number) => {
+    const full = (ms / pixels) * canvas.width * canvas.height;
+    motionScale = Math.min(1, Math.max(0.2, Math.sqrt(INTERACTIVE_MS / full)));
+    // Première mesure : la résolution de repos qui tient dans le budget d'un
+    // échantillon. Ensuite, seul un échantillon trop lent la fait baisser.
+    if (!calibrated) quality = Math.min(1, Math.max(MIN_QUALITY, Math.sqrt(MAX_SAMPLE_MS / full)));
+  };
+
+  /**
+   * Relance la boucle si elle dort. `restart` : la vue a changé, l'affinage
+   * repart de zéro ; sinon il reprend où il en était (le canvas garde sa
+   * dernière image, revenir à l'écran ne coûte rien).
+   */
+  function request(restart = true) {
+    if (restart) samples = 0;
     if (!running && alive && visible) {
       running = true;
       frame = requestAnimationFrame(loop);
@@ -355,14 +529,15 @@ export async function mountChessBoard(
     request();
   };
 
-  const onResize = () => request();
+  // La taille change-t-elle vraiment ? `resize()` le dira, et remettra à zéro.
+  const onResize = () => request(false);
 
   const observer =
     'IntersectionObserver' in window
       ? new IntersectionObserver(
           ([entry]) => {
             visible = entry?.isIntersecting ?? true;
-            if (visible) request();
+            if (visible) request(false);
           },
           { rootMargin: '120px' }
         )
@@ -415,7 +590,9 @@ export async function mountChessBoard(
       uniformBuffer.destroy();
       pieceBuffer.destroy();
       cellBuffer.destroy();
-      // Le périphérique et le pipeline restent : le pion de l'accueil s'en sert.
+      still?.texture.destroy();
+      moving?.texture.destroy();
+      // Le périphérique et les pipelines restent : le pion de l'accueil s'en sert.
       try {
         context.unconfigure();
       } catch {

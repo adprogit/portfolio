@@ -50,6 +50,18 @@ interface GPUTextureView {
 
 interface GPUTexture {
   createView(): GPUTextureView;
+  destroy(): void;
+}
+
+interface GPUSampler {
+  readonly label: string;
+}
+
+/** Mélange additif : sert à accumuler les échantillons. */
+interface GPUBlendComponent {
+  srcFactor: 'one' | 'zero';
+  dstFactor: 'one' | 'zero';
+  operation: 'add';
 }
 
 interface GPUCommandBuffer {
@@ -104,7 +116,10 @@ interface GPURenderPipelineDescriptor {
   fragment: {
     module: GPUShaderModule;
     entryPoint: string;
-    targets: Array<{ format: GPUTextureFormat }>;
+    targets: Array<{
+      format: GPUTextureFormat;
+      blend?: { color: GPUBlendComponent; alpha: GPUBlendComponent };
+    }>;
   };
   primitive?: { topology: 'triangle-list' };
 }
@@ -117,8 +132,21 @@ interface GPUDevice extends EventTarget {
   createBindGroup(descriptor: {
     label?: string;
     layout: GPUBindGroupLayout;
-    entries: Array<{ binding: number; resource: { buffer: GPUBuffer } }>;
+    entries: Array<{
+      binding: number;
+      resource: { buffer: GPUBuffer } | GPUTextureView | GPUSampler;
+    }>;
   }): GPUBindGroup;
+  createTexture(descriptor: {
+    label?: string;
+    size: { width: number; height: number };
+    format: GPUTextureFormat;
+    usage: number;
+  }): GPUTexture;
+  createSampler(descriptor: {
+    magFilter?: 'linear' | 'nearest';
+    minFilter?: 'linear' | 'nearest';
+  }): GPUSampler;
   createRenderPipelineAsync(
     descriptor: GPURenderPipelineDescriptor
   ): Promise<GPURenderPipeline>;
@@ -154,6 +182,11 @@ interface Navigator {
 interface HTMLCanvasElement {
   getContext(contextId: 'webgpu'): GPUCanvasContext | null;
 }
+
+declare const GPUTextureUsage: {
+  readonly RENDER_ATTACHMENT: number;
+  readonly TEXTURE_BINDING: number;
+};
 
 declare const GPUBufferUsage: {
   readonly UNIFORM: number;

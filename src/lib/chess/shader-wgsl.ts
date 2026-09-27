@@ -17,7 +17,7 @@
  * | `fs_main`                  | `Camera::pixel_position` + `Scene::render` |
  *
  * Toutes les constantes sont celles du C++, y compris la palette « Wood » de
- * `main.cpp`. Trois écarts, tous délibérés :
+ * `main.cpp`. Quatre écarts, tous délibérés :
  *
  * 1. Le C++ garde les pièces dans `std::vector<std::shared_ptr<SDF>> grid_[64]`.
  *    Un GPU n'a ni allocation ni fonction virtuelle : les pièces vivent dans un
@@ -31,6 +31,11 @@
  * 3. Pas de réflexion. `main.cpp` rend avec `REFLECTION_DEPTH = 0`, donc les
  *    images de référence n'en ont pas — et WGSL interdit la récursion de
  *    `Scene::march`, qu'il faudrait déplier.
+ * 4. Le suréchantillonnage. Le C++ repère les pixels de bord puis leur tire
+ *    16 échantillons au hasard. Ici la scène est immobile entre deux
+ *    interactions : chaque image ajoute un échantillon à **tous** les pixels,
+ *    décalé selon une suite de Halton, jusqu'à 16. La moyenne se fait en
+ *    linéaire et le gamma après, comme dans `Scene::render`.
  */
 
 export const SHADER = `
@@ -39,8 +44,7 @@ export const SHADER = `
 // que l'alignement aurait laissés vides de toute façon.
 struct Uniforms {
   res: vec2f,           // taille du framebuffer
-  pointer: vec2f,       // curseur, -1..1 ; la caméra est calculée côté CPU,
-                        // il n'est lu qu'au débogage
+  jitter: vec2f,        // décalage sous-pixel de l'échantillon, -0.5..0.5
   eye: vec3f,           // Camera::center_
   piece_count: u32,     // renseigné, non lu : la grille dit déjà quoi évaluer
   look_at: vec3f,       // Camera::target_ — « target » est réservé par WGSL
@@ -528,8 +532,11 @@ fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   // Camera::pixel_position compte j depuis le haut de l'image, et WebGPU place
   // aussi son origine en haut à gauche : contrairement au pion, rien à
   // retourner ici.
-  let ux = 2.0 * (position.x / u.res.x - 0.5);
-  let vy = 2.0 * (0.5 - position.y / u.res.y);
+  // position est le centre du pixel ; le décalage choisit où l'échantillon
+  // tombe dedans. Seize décalages font le suréchantillonnage du C++.
+  let px = position.xy + u.jitter;
+  let ux = 2.0 * (px.x / u.res.x - 0.5);
+  let vy = 2.0 * (0.5 - px.y / u.res.y);
 
   let w = normalize(u.look_at - u.eye);
   let right = normalize(cross(vec3f(0.0, 1.0, 0.0), w));
@@ -538,9 +545,39 @@ fn fs_main(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let pixel = u.eye + w + right * (ux * u.half_width) + up * (vy * u.half_height);
   let rd = normalize(pixel - u.eye);
 
-  var col = march(u.eye, rd);
-  col = pow(max(col, vec3f(0.0)), vec3f(1.0 / 2.2));   // correction gamma
-  return vec4f(col, 1.0);
+  // Couleur linéaire, alpha 1 : additionnés dans la texture d'accumulation,
+  // rgb fait la somme et alpha le nombre d'échantillons. Le gamma vient après
+  // la moyenne, comme dans Scene::render.
+  return vec4f(max(march(u.eye, rd), vec3f(0.0)), 1.0);
+}
+`;
+
+/**
+ * La présentation : la moyenne des échantillons accumulés, puis le gamma du
+ * C++. Filtrage linéaire : pendant un mouvement, l'accumulation est plus
+ * petite que le canvas et c'est ici qu'elle est agrandie.
+ */
+export const PRESENT = `
+@group(0) @binding(0) var accum: texture_2d<f32>;
+@group(0) @binding(1) var smooth_sampler: sampler;
+
+struct Out {
+  @builtin(position) position: vec4f,
+  @location(0) uv: vec2f,
+};
+
+@vertex
+fn vs_present(@builtin(vertex_index) index: u32) -> Out {
+  var corners = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));
+  let c = corners[index];
+  return Out(vec4f(c, 0.0, 1.0), vec2f(0.5 * c.x + 0.5, 0.5 - 0.5 * c.y));
+}
+
+@fragment
+fn fs_present(frag: Out) -> @location(0) vec4f {
+  let sum = textureSample(accum, smooth_sampler, frag.uv);
+  let mean = sum.rgb / max(sum.a, 1.0);
+  return vec4f(pow(mean, vec3f(1.0 / 2.2)), 1.0);
 }
 `;
 

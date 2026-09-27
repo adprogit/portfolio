@@ -1,6 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import tailwindcss from '@tailwindcss/vite';
+import { wgslMinify } from './tools/wgsl-minify.mjs';
 
 /*
  * Pas de `site` : `canonical`, `hreflang` et `og:image` sont écrits en chemins
@@ -29,6 +30,7 @@ export default defineConfig({
     format: 'directory',
   },
   vite: {
-    plugins: [tailwindcss()],
+    // Le WGSL de l'échiquier perd ses commentaires dans le JS livré.
+    plugins: [tailwindcss(), wgslMinify()],
   },
 });
