@@ -1,7 +1,7 @@
 # Portfolio
 
 Site statique en trois langues (en, fr, de) : on y arrive depuis un CV, on y lit
-dix projets et quatre notes de cours, on repart. Astro 7 + Tailwind 4, aucune
+onze projets et quatre notes de cours, on repart. Astro 7 + Tailwind 4, aucune
 dépendance JavaScript à l'exécution, et un échiquier rendu en direct par WebGPU
 sur la page du ray marcher.
 

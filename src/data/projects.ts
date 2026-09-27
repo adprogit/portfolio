@@ -57,6 +57,12 @@ import ntcViewerImage from '../assets/neural-texture/viewer.jpg';
 import ntcRateImage from '../assets/neural-texture/rate-distortion.png';
 import tigerPipelineImage from '../assets/tiger/pipeline.png';
 import tigerAstImage from '../assets/tiger/ast.png';
+import itkEffectImage from '../assets/itk-vtk/effect.png';
+import itkRigidAxialImage from '../assets/itk-vtk/rigid-axial.png';
+import itkTranslationSagittalImage from '../assets/itk-vtk/translation-sagittal.png';
+import itkRigidSagittalImage from '../assets/itk-vtk/rigid-sagittal.png';
+import itkSegT1Image from '../assets/itk-vtk/segmentation-t1.png';
+import itkSegT2Image from '../assets/itk-vtk/segmentation-t2.png';
 
 /** Un visuel fixe ou animé. */
 export interface Shot {
@@ -249,6 +255,36 @@ lung_mask = np.isin(labels, np.argsort(sizes)[-2:] + 1)
 
 lung_mask = ndimage.binary_dilation(lung_mask, iterations=3)   # nodules pleuraux
 lung_mask = ndimage.binary_erosion(lung_mask, iterations=5)    # paroi`,
+  },
+  itkSeed: {
+    lang: 'python',
+    code: `# sur l'IRM brute, scalp et vaisseaux sont aussi clairs que la tumeur :
+# un flou gaussien les éteint, une masse compacte garde son intensité
+smoother = itk.SmoothingRecursiveGaussianImageFilter.New(Input=image)
+smoother.SetSigma(2.0)
+smoother.Update()
+arr = itk.GetArrayFromImage(smoother.GetOutput())
+
+m = border_margin                                # ignorer les faces du crop
+inner = arr[m:-m, m:-m, m:-m]
+z, y, x = np.unravel_index(np.argmax(inner), inner.shape)
+seed = [int(x) + m, int(y) + m, int(z) + m]      # ordre ITK : x, y, z`,
+  },
+  itkToVtk: {
+    lang: 'python',
+    code: `direction = itk.array_from_matrix(itk_img.GetDirection())
+origin = np.array(itk_img.GetOrigin())
+spacing = np.array(itk_img.GetSpacing())
+
+mat = vtk.vtkMatrix4x4()
+for i in range(3):
+    for j in range(3):
+        mat.SetElement(i, j, direction[i, j] * spacing[j])   # direction × pas
+    mat.SetElement(i, 3, origin[i])                          # origine
+
+transform = vtk.vtkTransform()
+transform.SetMatrix(mat)
+actor.SetUserTransform(transform)`,
   },
   twoPasses: {
     lang: 'python',
@@ -4809,6 +4845,407 @@ const neuralTexture: ProjectDef = {
   },
 };
 
+const itkVtk: ProjectDef = {
+  slug: 'itk-vtk',
+  category: 'vision',
+  title: 'Tumor Follow-up',
+  tone: 'purple',
+  tech: ['Python', 'ITK', 'VTK', 'NumPy', 'Matplotlib', 'uv', 'mypy', 'Ruff'],
+  tags: ['python', 'imaging'],
+  metrics: ['−33.6 % RMS', 'Dice 0.74'],
+
+  shots: {
+    effect: { image: itkEffectImage, background: 'light' },
+    rigidAxial: { image: itkRigidAxialImage, background: 'light' },
+    translationSagittal: { image: itkTranslationSagittalImage, background: 'light' },
+    rigidSagittal: { image: itkRigidSagittalImage, background: 'light' },
+    segT1: { image: itkSegT1Image, background: 'light' },
+    segT2: { image: itkSegT2Image, background: 'light' },
+  },
+  cover: 'effect',
+  gallery: ['rigidSagittal'],
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      tagline: 'Two brain MRIs of the same patient, aligned, then compared tumor to tumor',
+      description:
+        'Two MRI volumes of the same patient, acquired at different dates, are registered, their tumor is segmented without any manual input, and the two masks are compared in volume and overlap. ITK for the processing, VTK for the side-by-side 3D view.',
+      shots: {
+        effect: {
+          alt: 'Two crops of the same axial MRI slice of the second scan. Left, before registration: the tumor sits low and the skull runs obliquely. Right, after registration: the tumor is centred and the skull straightened.',
+          caption: 'The same slice of the second scan, before and after registration.',
+        },
+        rigidAxial: {
+          alt: 'Three axial panels: the difference between the two volumes before registration, full of bright contours; the difference after rigid registration, much darker; and a red-blue overlay of both volumes, almost neutral.',
+          caption: 'Rigid registration, axial plane: difference before, difference after, overlay.',
+        },
+        translationSagittal: {
+          alt: 'Three sagittal panels of a head: difference before, difference after a translation-only registration, which still shows clear fringes along the skull, and the red-blue overlay.',
+          caption: 'Translation alone: the fringes along the skull remain — the rotation is not corrected.',
+        },
+        rigidSagittal: {
+          alt: 'Three sagittal panels of a head after rigid registration: difference before, difference after, and a red-blue overlay where the contours coincide.',
+          caption: 'Rigid registration, sagittal plane.',
+        },
+        segT1: {
+          alt: 'Crop of an MRI slice with the tumor outlined in red on the first scan, 7429 voxels.',
+          caption: 'First scan: 7429 voxels.',
+        },
+        segT2: {
+          alt: 'Crop of the same MRI slice on the registered second scan, with the tumor outlined in red, 7374 voxels.',
+          caption: 'Second scan, registered: 7374 voxels.',
+        },
+      },
+      sections: [
+        {
+          id: 'registration',
+          kicker: '01',
+          title: 'Aligning before comparing',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Between two exams, the head does not lie the same way in the scanner. Compared as they are, the two volumes would mistake that shift for a change in the tumor. Registration comes first, and four transforms are compared under the same metric (mean squares), the same optimizer (regular-step gradient descent, 200 iterations) and the same parameter scaling, so that any difference comes from the transform alone.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Before registration — RMS of the residual: 179.2.',
+                'Translation, 3 DOF — 125.5 (−29.9 %).',
+                'Rigid, 6 DOF — 118.9 (−33.6 %), +3.7 points over translation.',
+                'Similarity, 7 DOF — 116.9 (−34.8 %), +1.2 points.',
+                'Affine, 12 DOF — 113.0 (−36.9 %), +2.1 points.',
+              ],
+            },
+            { type: 'media', shot: 'rigidAxial' },
+          ],
+        },
+        {
+          id: 'choice',
+          kicker: '02',
+          title: 'Why the rigid transform wins while ranking third',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'The residual falls with every added degree of freedom: that is mechanical for a least-squares criterion, and would hold even if the affine were the wrong tool. The increments are what matter. Rotations bring the largest step after translation; beyond them, scale and shear gain little — and a skull has no real scale or shear to correct. Visually, similarity and affine cannot be told apart from rigid.',
+            },
+            { type: 'media', shot: 'translationSagittal' },
+            {
+              type: 'text',
+              content:
+                'The rigid transform is kept: it corrects the pose and stops where extra freedom would start absorbing the change we want to measure. The global RMS cannot prove this on its own — it adds misalignment and real tumor change together. The clean test, an RMS split inside and outside the tumor, needs the segmentation below.',
+            },
+          ],
+        },
+        {
+          id: 'segmentation',
+          kicker: '03',
+          title: 'A seed found without a click',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'The tumor is grown from a seed, and the seed is found automatically. The brightest voxel seemed the obvious choice, but on this gradient-echo MRI the scalp and vessels are as bright as the tumor, and the raw maximum always landed on the skull. A Gaussian blur first fixes that: thin structures lose their intensity to their dark surroundings, a compact mass keeps it.',
+            },
+            { type: 'code', snippet: 'itkSeed', caption: 'src/segmentation.py' },
+            {
+              type: 'text',
+              content:
+                'From that seed, a connected threshold on [550, 1300] collects the tumor, and a morphological opening removes isolated voxels. A first attempt with confidence-connected growing only worked in a narrow band of its multiplier, and never for both scans at once; an absolute threshold applies identically to both, which is what a comparison needs.',
+            },
+            { type: 'media', shot: 'segT1' },
+            { type: 'media', shot: 'segT2' },
+          ],
+        },
+        {
+          id: 'change',
+          kicker: '04',
+          title: 'Stable volume, partial overlap',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'The volume barely moves: 7429 mm³ then 7374 mm³, −0.7 %, within what a boundary voxel or the threshold can explain. The overlap is more telling: a Dice of 0.74 means that, at nearly the same size, the two masks share only three quarters of their voxels. The result is stated as such — stable volume, partial overlap — without claiming whether the gap comes from a real change of shape or from residual misalignment.',
+            },
+          ],
+        },
+        {
+          id: 'vtk',
+          kicker: '05',
+          title: 'Two scenes side by side',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'VTK shows both exams in one window, first on the left, second on the right, with an interactive camera. The skull is a faint volume rendering, there as a landmark; the tumor is a surface extracted by marching cubes, smoothed and coloured, with its volume and the change overlaid.',
+            },
+            {
+              type: 'text',
+              content:
+                'The hardest bug was not in the algorithms: masks appeared nowhere near the skull. ITK images carry an origin, a spacing and a direction matrix; a VTK image built from a NumPy array carries none of it. Each actor therefore receives the transform rebuilt from its ITK image.',
+            },
+            { type: 'code', snippet: 'itkToVtk', caption: 'src/visualisation.py' },
+          ],
+        },
+      ],
+    },
+
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      tagline: 'Deux IRM cérébrales du même patient, alignées, puis comparées tumeur contre tumeur',
+      description:
+        'Deux volumes IRM du même patient, acquis à des dates différentes, sont recalés, leur tumeur est segmentée sans aucune saisie manuelle, et les deux masques sont comparés en volume et en recouvrement. ITK pour le traitement, VTK pour la vue 3D côte à côte.',
+      shots: {
+        effect: {
+          alt: 'Deux recadrages de la même coupe axiale IRM du second examen. À gauche, avant recalage : la tumeur est basse et la voûte crânienne oblique. À droite, après recalage : la tumeur est centrée et la voûte redressée.',
+          caption: 'La même coupe du second examen, avant et après recalage.',
+        },
+        rigidAxial: {
+          alt: 'Trois panneaux axiaux : la différence entre les deux volumes avant recalage, pleine de contours clairs ; la différence après recalage rigide, bien plus sombre ; et une superposition rouge-bleu des deux volumes, presque neutre.',
+          caption: 'Recalage rigide, plan axial : différence avant, différence après, superposition.',
+        },
+        translationSagittal: {
+          alt: 'Trois panneaux sagittaux d’une tête : différence avant, différence après un recalage en translation seule, qui garde des franges nettes le long du crâne, et la superposition rouge-bleu.',
+          caption: 'La translation seule : les franges le long du crâne restent — la rotation n’est pas corrigée.',
+        },
+        rigidSagittal: {
+          alt: 'Trois panneaux sagittaux d’une tête après recalage rigide : différence avant, différence après, et superposition rouge-bleu où les contours coïncident.',
+          caption: 'Recalage rigide, plan sagittal.',
+        },
+        segT1: {
+          alt: 'Recadrage d’une coupe IRM avec la tumeur cernée de rouge sur le premier examen, 7429 voxels.',
+          caption: 'Premier examen : 7429 voxels.',
+        },
+        segT2: {
+          alt: 'Recadrage de la même coupe IRM sur le second examen recalé, avec la tumeur cernée de rouge, 7374 voxels.',
+          caption: 'Second examen, recalé : 7374 voxels.',
+        },
+      },
+      sections: [
+        {
+          id: 'registration',
+          kicker: '01',
+          title: 'Aligner avant de comparer',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'D’un examen à l’autre, la tête n’est pas posée de la même façon dans la machine. Comparés tels quels, les deux volumes confondraient ce déplacement avec une évolution de la tumeur. Le recalage vient donc en premier, et quatre transformations sont comparées avec la même métrique (moindres carrés), le même optimiseur (descente de gradient à pas régulier, 200 itérations) et la même normalisation des paramètres : un écart ne peut venir que de la transformation.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Avant recalage — RMS du résidu : 179,2.',
+                'Translation, 3 ddl — 125,5 (−29,9 %).',
+                'Rigide, 6 ddl — 118,9 (−33,6 %), +3,7 points sur la translation.',
+                'Similitude, 7 ddl — 116,9 (−34,8 %), +1,2 point.',
+                'Affine, 12 ddl — 113,0 (−36,9 %), +2,1 points.',
+              ],
+            },
+            { type: 'media', shot: 'rigidAxial' },
+          ],
+        },
+        {
+          id: 'choice',
+          kicker: '02',
+          title: 'Pourquoi le rigide l’emporte en finissant troisième',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Le résidu baisse à chaque degré de liberté ajouté : c’est mécanique pour un critère aux moindres carrés, et ce serait vrai même si l’affine était le mauvais outil. Ce sont les incréments qui comptent. Les rotations apportent le plus gros saut après la translation ; au-delà, échelle et cisaillement ne gagnent presque rien — et un crâne n’a ni échelle ni cisaillement réels à corriger. À l’œil, similitude et affine sont indiscernables du rigide.',
+            },
+            { type: 'media', shot: 'translationSagittal' },
+            {
+              type: 'text',
+              content:
+                'Le rigide est retenu : il corrige la pose et s’arrête là où des libertés en plus commenceraient à absorber le changement qu’on veut mesurer. La RMS globale ne peut pas le prouver seule — elle additionne désalignement et évolution réelle. Le test propre, une RMS scindée dans et hors de la tumeur, demande la segmentation qui suit.',
+            },
+          ],
+        },
+        {
+          id: 'segmentation',
+          kicker: '03',
+          title: 'Un germe trouvé sans un clic',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'La tumeur croît depuis un germe, et le germe est trouvé automatiquement. Le voxel le plus clair semblait le choix évident, mais sur cette IRM en écho de gradient, scalp et vaisseaux sont aussi clairs que la tumeur, et le maximum brut tombait toujours sur le crâne. Un flou gaussien préalable règle cela : les structures fines perdent leur intensité dans leur voisinage sombre, une masse compacte la garde.',
+            },
+            { type: 'code', snippet: 'itkSeed', caption: 'src/segmentation.py' },
+            {
+              type: 'text',
+              content:
+                'Depuis ce germe, un seuillage connecté sur [550, 1300] rassemble la tumeur, et une ouverture morphologique retire les voxels isolés. Un premier essai en croissance « confidence connected » ne marchait que dans une fenêtre étroite de son multiplicateur, et jamais pour les deux examens à la fois ; un seuil absolu s’applique à l’identique aux deux, ce qu’exige une comparaison.',
+            },
+            { type: 'media', shot: 'segT1' },
+            { type: 'media', shot: 'segT2' },
+          ],
+        },
+        {
+          id: 'change',
+          kicker: '04',
+          title: 'Volume stable, recouvrement partiel',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Le volume bouge à peine : 7429 mm³ puis 7374 mm³, −0,7 %, dans ce qu’un voxel de bord ou le seuil suffisent à expliquer. Le recouvrement en dit plus : un Dice de 0,74 signifie qu’à taille presque égale, les deux masques ne partagent que les trois quarts de leurs voxels. Le résultat est énoncé tel quel — volume stable, recouvrement partiel — sans trancher entre un vrai changement de forme et un désalignement résiduel.',
+            },
+          ],
+        },
+        {
+          id: 'vtk',
+          kicker: '05',
+          title: 'Deux scènes côte à côte',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'VTK montre les deux examens dans une même fenêtre, le premier à gauche, le second à droite, avec une caméra interactive. Le crâne est un rendu volumique très transparent, là comme repère ; la tumeur est une surface extraite par marching cubes, lissée et colorée, avec son volume et la variation en surimpression.',
+            },
+            {
+              type: 'text',
+              content:
+                'Le bug le plus tenace n’était pas dans les algorithmes : les masques apparaissaient loin du crâne. Une image ITK porte une origine, un pas et une matrice de direction ; une image VTK construite depuis un tableau NumPy n’en porte aucun. Chaque acteur reçoit donc la transformation reconstruite depuis son image ITK.',
+            },
+            { type: 'code', snippet: 'itkToVtk', caption: 'src/visualisation.py' },
+          ],
+        },
+      ],
+    },
+
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      tagline: 'Zwei Hirn-MRTs desselben Patienten, ausgerichtet, dann Tumor gegen Tumor verglichen',
+      description:
+        'Zwei MRT-Volumen desselben Patienten, zu verschiedenen Zeitpunkten aufgenommen, werden registriert, ihr Tumor wird ohne jede manuelle Eingabe segmentiert, und beide Masken werden nach Volumen und Überlappung verglichen. ITK für die Verarbeitung, VTK für die 3D-Ansicht nebeneinander.',
+      shots: {
+        effect: {
+          alt: 'Zwei Ausschnitte derselben axialen MRT-Schicht der zweiten Aufnahme. Links, vor der Registrierung: der Tumor liegt tief und die Schädeldecke verläuft schräg. Rechts, danach: der Tumor ist zentriert und die Schädeldecke gerade.',
+          caption: 'Dieselbe Schicht der zweiten Aufnahme, vor und nach der Registrierung.',
+        },
+        rigidAxial: {
+          alt: 'Drei axiale Felder: die Differenz der beiden Volumen vor der Registrierung, voller heller Konturen; die Differenz nach starrer Registrierung, viel dunkler; und eine rot-blaue Überlagerung beider Volumen, fast neutral.',
+          caption: 'Starre Registrierung, axiale Ebene: Differenz vorher, Differenz nachher, Überlagerung.',
+        },
+        translationSagittal: {
+          alt: 'Drei sagittale Felder eines Kopfes: Differenz vorher, Differenz nach reiner Translation, die entlang des Schädels noch deutliche Säume zeigt, und die rot-blaue Überlagerung.',
+          caption: 'Nur Translation: die Säume entlang des Schädels bleiben — die Rotation ist nicht korrigiert.',
+        },
+        rigidSagittal: {
+          alt: 'Drei sagittale Felder eines Kopfes nach starrer Registrierung: Differenz vorher, Differenz nachher und eine rot-blaue Überlagerung, in der die Konturen zusammenfallen.',
+          caption: 'Starre Registrierung, sagittale Ebene.',
+        },
+        segT1: {
+          alt: 'Ausschnitt einer MRT-Schicht mit rot umrandetem Tumor in der ersten Aufnahme, 7429 Voxel.',
+          caption: 'Erste Aufnahme: 7429 Voxel.',
+        },
+        segT2: {
+          alt: 'Ausschnitt derselben MRT-Schicht in der registrierten zweiten Aufnahme, Tumor rot umrandet, 7374 Voxel.',
+          caption: 'Zweite Aufnahme, registriert: 7374 Voxel.',
+        },
+      },
+      sections: [
+        {
+          id: 'registration',
+          kicker: '01',
+          title: 'Erst ausrichten, dann vergleichen',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Von einer Untersuchung zur nächsten liegt der Kopf anders im Gerät. Unverändert verglichen, würden die beiden Volumen diese Verschiebung für eine Veränderung des Tumors halten. Die Registrierung kommt daher zuerst, und vier Transformationen werden mit derselben Metrik (mittlere quadratische Abweichung), demselben Optimierer (Gradientenabstieg mit regelmäßiger Schrittweite, 200 Iterationen) und derselben Parameterskalierung verglichen: Ein Unterschied kann nur von der Transformation kommen.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Vor der Registrierung — RMS des Residuums: 179,2.',
+                'Translation, 3 FG — 125,5 (−29,9 %).',
+                'Starr, 6 FG — 118,9 (−33,6 %), +3,7 Punkte gegenüber der Translation.',
+                'Ähnlichkeit, 7 FG — 116,9 (−34,8 %), +1,2 Punkte.',
+                'Affin, 12 FG — 113,0 (−36,9 %), +2,1 Punkte.',
+              ],
+            },
+            { type: 'media', shot: 'rigidAxial' },
+          ],
+        },
+        {
+          id: 'choice',
+          kicker: '02',
+          title: 'Warum die starre Transformation als Dritte gewinnt',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Das Residuum sinkt mit jedem zusätzlichen Freiheitsgrad: Bei einem Kriterium der kleinsten Quadrate ist das mechanisch und gälte selbst dann, wenn die affine Transformation das falsche Werkzeug wäre. Entscheidend sind die Zuwächse. Die Rotationen bringen nach der Translation den größten Sprung; darüber hinaus gewinnen Skalierung und Scherung kaum etwas — und ein Schädel hat keine echte Skalierung oder Scherung zu korrigieren. Mit bloßem Auge sind Ähnlichkeit und affin nicht von starr zu unterscheiden.',
+            },
+            { type: 'media', shot: 'translationSagittal' },
+            {
+              type: 'text',
+              content:
+                'Die starre Transformation wird gewählt: Sie korrigiert die Lage und hört dort auf, wo zusätzliche Freiheit die Veränderung schlucken würde, die man messen will. Der globale RMS kann das allein nicht beweisen — er addiert Fehlausrichtung und echte Veränderung. Der saubere Test, ein RMS getrennt innerhalb und außerhalb des Tumors, braucht die folgende Segmentierung.',
+            },
+          ],
+        },
+        {
+          id: 'segmentation',
+          kicker: '03',
+          title: 'Ein Saatpunkt ohne einen Klick',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Der Tumor wächst von einem Saatpunkt aus, und der Saatpunkt wird automatisch gefunden. Das hellste Voxel schien die naheliegende Wahl, doch in diesem Gradientenecho-MRT sind Kopfhaut und Gefäße so hell wie der Tumor, und das rohe Maximum landete stets auf dem Schädel. Eine vorherige Gauß-Glättung löst das: Feine Strukturen verlieren ihre Intensität an ihre dunkle Umgebung, eine kompakte Masse behält sie.',
+            },
+            { type: 'code', snippet: 'itkSeed', caption: 'src/segmentation.py' },
+            {
+              type: 'text',
+              content:
+                'Von diesem Saatpunkt aus sammelt ein verbundener Schwellwert auf [550, 1300] den Tumor ein, und eine morphologische Öffnung entfernt isolierte Voxel. Ein erster Versuch mit Confidence-Connected-Wachstum funktionierte nur in einem schmalen Bereich seines Multiplikators und nie für beide Aufnahmen zugleich; ein absoluter Schwellwert gilt für beide gleich, und genau das braucht ein Vergleich.',
+            },
+            { type: 'media', shot: 'segT1' },
+            { type: 'media', shot: 'segT2' },
+          ],
+        },
+        {
+          id: 'change',
+          kicker: '04',
+          title: 'Stabiles Volumen, teilweise Überlappung',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Das Volumen ändert sich kaum: 7429 mm³, dann 7374 mm³, −0,7 %, im Rahmen dessen, was ein Randvoxel oder der Schwellwert erklären. Aufschlussreicher ist die Überlappung: Ein Dice von 0,74 bedeutet, dass die beiden Masken bei fast gleicher Größe nur drei Viertel ihrer Voxel teilen. Das Ergebnis wird so benannt — stabiles Volumen, teilweise Überlappung —, ohne zu entscheiden, ob die Lücke von einer echten Formänderung oder von einer Restfehlausrichtung kommt.',
+            },
+          ],
+        },
+        {
+          id: 'vtk',
+          kicker: '05',
+          title: 'Zwei Szenen nebeneinander',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'VTK zeigt beide Untersuchungen in einem Fenster, die erste links, die zweite rechts, mit interaktiver Kamera. Der Schädel ist ein sehr transparentes Volumenrendering, als Orientierung; der Tumor ist eine per Marching Cubes extrahierte, geglättete und eingefärbte Oberfläche, mit seinem Volumen und der Veränderung als Einblendung.',
+            },
+            {
+              type: 'text',
+              content:
+                'Der hartnäckigste Fehler lag nicht in den Algorithmen: Die Masken erschienen weit weg vom Schädel. Ein ITK-Bild trägt einen Ursprung, einen Voxelabstand und eine Richtungsmatrix; ein aus einem NumPy-Array gebautes VTK-Bild trägt nichts davon. Jeder Akteur erhält daher die aus seinem ITK-Bild rekonstruierte Transformation.',
+            },
+            { type: 'code', snippet: 'itkToVtk', caption: 'src/visualisation.py' },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 const definitions: ProjectDef[] = [
   /*
    * L'ordre d'affichage, et sa seule source. Les projets sortent d'ici tels
@@ -4827,6 +5264,7 @@ const definitions: ProjectDef[] = [
 
   // Vision & imagerie
   pulmonix,
+  itkVtk,
   unet,
   automata,
   sudoku,
