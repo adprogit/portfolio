@@ -1336,6 +1336,56 @@
   }
 
   /*
+   * ── Les sprites des lignes de projet ────────────────────────────────
+   * Une case carrée en pixels (`PixelSprite.astro`). Chaque pixel porte un
+   * rôle, et c'est ici qu'il prend sa couleur : l'accent du projet, l'encre,
+   * le trait, le filet — donc le thème courant, sans image à doubler.
+   *
+   * Échelle entière, sinon les pixels n'ont pas tous la même taille : 2 px
+   * d'écran par pixel sur téléphone, 3 au-delà. `crispEdges` interdit le
+   * lissage des bords.
+   *
+   * L'animation montre une image à la fois : chaque groupe n'est visible que
+   * pendant son seizième du cycle, décalé de son rang. Sans animation — mouvement
+   * réduit —, seule la dernière image reste : elle résume la scène.
+   */
+  .px-sprite {
+    display: block;
+    flex: none;
+    width: calc(var(--px-n) * 2px);
+    height: calc(var(--px-n) * 2px);
+    shape-rendering: crispEdges;
+  }
+
+  @media (min-width: 40rem) {
+    .px-sprite {
+      width: calc(var(--px-n) * 3px);
+      height: calc(var(--px-n) * 3px);
+    }
+  }
+
+  .px-a { fill: var(--row-accent, var(--color-brand)); }
+  .px-i { fill: var(--color-ink-soft); }
+  .px-l { fill: var(--color-line); }
+  .px-r { fill: var(--color-rule); }
+
+  .px-frame { visibility: hidden; }
+  .px-frame:last-of-type { visibility: visible; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .px-frame {
+      animation: px-frame 2.88s step-end infinite;
+      animation-delay: calc((var(--f) - 16) * 0.18s);
+    }
+  }
+
+  @keyframes px-frame {
+    0% { visibility: visible; }
+    6.25%,
+    100% { visibility: hidden; }
+  }
+
+  /*
    * ── Liens de texte ──────────────────────────────────────────────────
    * Un soulignement fin, décollé du texte, qui s'épaissit au survol. Aucun
    * fond, aucune capsule : dans une page sobre, un lien se signale par son
