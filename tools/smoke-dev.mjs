@@ -70,6 +70,9 @@ const ROUTES = [
   '/notes/unet-piece-by-piece/',
   '/fr/notes/unet-piece-by-piece/',
   '/de/notes/unet-piece-by-piece/',
+  '/notes/cel-shading/',
+  '/fr/notes/cel-shading/',
+  '/de/notes/cel-shading/',
 ];
 
 const PORT = 4331 + (process.pid % 200);

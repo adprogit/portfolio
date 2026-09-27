@@ -1,7 +1,7 @@
 # Portfolio
 
 Site statique en trois langues (en, fr, de) : on y arrive depuis un CV, on y lit
-dix projets et trois notes de cours, on repart. Astro 7 + Tailwind 4, aucune
+dix projets et quatre notes de cours, on repart. Astro 7 + Tailwind 4, aucune
 dépendance JavaScript à l'exécution, et un échiquier rendu en direct par WebGPU
 sur la page du ray marcher.
 
@@ -77,9 +77,11 @@ par au moins un projet.
 
 Une note explique comment marche un projet : **Du rayon au pixel** (optique de
 rendu, racontée par le code du ray marcher), **Méthodes de descente au banc
-d'essai** (rapport d'optimisation convexe) et **U-Net, pièce par pièce** (notes
+d'essai** (rapport d'optimisation convexe), **U-Net, pièce par pièce** (notes
 de cours en listes et formules ; tailles, paramètres, calcul et champ réceptif
-recalculés par `src/lib/unet.ts`).
+recalculés par `src/lib/unet.ts`) et **Cel shading, bande par bande** (partie
+du projet ToonGL, avec un aparté sur les god rays ; rampe, contours et rayons
+rejoués par `src/lib/toon.ts` avec les constantes des shaders).
 
 - **Les extraits disent d'où ils viennent** : champ `source` avec fichier et
   ligne. Un seul, marqué `source: 'course'`, a été écrit pour le cours.

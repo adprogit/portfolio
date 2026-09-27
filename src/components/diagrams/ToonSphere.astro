@@ -1,0 +1,61 @@
+---
+/**
+ * Cours cel shading — la même sphère, trois fois : Lambert (tramé, pour
+ * montrer le dégradé continu), puis la rampe à 4 bandes du projet, puis les
+ * bandes et le terme de rim. Chaque pixel est calculé avec les fonctions de
+ * `src/lib/toon.ts` — la rampe lue au plus proche, le rim de `fragment.shd`.
+ *
+ * Palette fixe (`.tn-*`) : c'est une image rendue, elle ne change pas avec le
+ * thème, comme une capture ne changerait pas.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { bands, ditherLevel, levelPaths, normalize, RAMP, rampTexels, rimEdge, sampleRamp } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const N = 40;
+const scale = 4;
+const L = normalize([-0.45, 0.55, 0.7]);
+const texels = rampTexels(RAMP.levels, RAMP.barkFloor);
+const levels = bands(texels).map((b) => b.value);
+const INK = 5;
+
+type Mode = 'lambert' | 'bands' | 'rim';
+const render = (mode: Mode) =>
+  Array.from({ length: N }, (_, y) =>
+    Array.from({ length: N }, (_, x) => {
+      const nx = (x + 0.5 - N / 2) / (N / 2 - 1);
+      const ny = -(y + 0.5 - N / 2) / (N / 2 - 1);
+      const q = nx * nx + ny * ny;
+      if (q > 1) return null;
+      const nz = Math.sqrt(1 - q);
+      const ndotl = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
+      if (mode === 'lambert') return ditherLevel(ndotl, 5, x, y);
+      const band = 1 + levels.indexOf(sampleRamp(ndotl, texels));
+      if (mode === 'bands') return band;
+      // Le rim : on mélange vers l'encre selon smoothstep(…, 1 − N·V), tramé.
+      const edge = rimEdge((Math.acos(nz) * 180) / Math.PI);
+      return ditherLevel(edge, 2, x, y) === 1 ? INK : band;
+    })
+  );
+
+const panels: { mode: Mode; label: string }[] = [
+  { mode: 'lambert', label: t('diagram.toon.lambert') },
+  { mode: 'bands', label: t('diagram.toon.bands') },
+  { mode: 'rim', label: t('diagram.toon.rim') },
+];
+const X = [32, 240, 448];
+const Y = 10;
+const cls = ['tn-0', 'tn-1', 'tn-2', 'tn-3', 'tn-4', 'tn-ink'];
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 214" role="img" aria-label={t('diagram.toonSphere.alt')} shape-rendering="crispEdges">
+  {panels.map(({ mode, label }, k) => (
+    <g>
+      {levelPaths(render(mode), scale, X[k], Y).map(({ level, d }) => <path class={cls[level]} d={d} />)}
+      <text class="d-label" x={X[k] + (N * scale) / 2} y={Y + N * scale + 24} text-anchor="middle">{label}</text>
+    </g>
+  ))}
+</svg>

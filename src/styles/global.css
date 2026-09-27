@@ -1154,6 +1154,33 @@
   .s-macs { --s: var(--color-accent-cyan); }
   .s-exact { --s: var(--color-accent-orange); }
   .s-measured { --s: var(--color-ink-soft); }
+  /* Le cours de cel shading : rampes, rim, poids des god rays. */
+  .s-lambert { --s: var(--color-ink-soft); }
+  .s-ramp2 { --s: var(--color-accent-cyan); }
+  .s-ramp4 { --s: var(--color-accent-orange); }
+  .s-rim { --s: var(--color-accent-cyan); }
+  .s-d90 { --s: var(--color-accent-orange); }
+  .s-d96 { --s: var(--color-accent-cyan); }
+  .s-d99 { --s: var(--color-accent-purple); }
+
+  /*
+   * Les images rendues des schémas de cel shading : une palette fixe, pas des
+   * jetons du thème. Ce sont des rendus — une sphère ombrée, une scène au
+   * couchant — et un rendu a ses couleurs, comme une capture les garderait.
+   */
+  .tn-0 { fill: #10211e; }
+  .tn-1 { fill: #1f3f39; }
+  .tn-2 { fill: #2f645a; }
+  .tn-3 { fill: #4f9284; }
+  .tn-4 { fill: #8cc6b8; }
+  .tn-ink { fill: #07080c; }
+  .gr-0 { fill: #0b0908; }
+  .gr-1 { fill: #231914; }
+  .gr-2 { fill: #3d2a1e; }
+  .gr-3 { fill: #6a4128; }
+  .gr-4 { fill: #9c5f33; }
+  .gr-5 { fill: #d18f47; }
+  .gr-6 { fill: #fff1c9; }
 
   :is(.plot, .legend-swatch) .p-line {
     fill: none;

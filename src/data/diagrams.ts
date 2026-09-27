@@ -32,6 +32,13 @@ export const diagramKeys = [
   'unetReceptive',
   'unetBudget',
   'unetDiceIou',
+  // Cel shading, et l'aparté sur les god rays — calculés depuis `src/lib/toon.ts`.
+  'toonSphere',
+  'toonRamp',
+  'toonRim',
+  'toonEdges',
+  'godRaysImage',
+  'godRaysDecay',
 ] as const;
 
 export type DiagramKey = (typeof diagramKeys)[number];
