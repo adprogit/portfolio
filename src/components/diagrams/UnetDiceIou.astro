@@ -1,0 +1,44 @@
+---
+/**
+ * Note U-Net — Dice et IoU. Sur une image, D = 2J / (1 + J), exactement. Sur
+ * des moyennes, non : le point des moyennes du jeu de test tombe sous la
+ * courbe, parce que la courbe est concave (inégalité de Jensen). L'écart
+ * vertical se lit directement sur la figure.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { diceOfIou, results } from '../../lib/unet';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const curve = Array.from({ length: 101 }, (_, i) => [i / 100, diceOfIou(i / 100)] as [number, number]);
+const onCurve: [number, number] = [results.iou, diceOfIou(results.iou)];
+const measured: [number, number] = [results.iou, results.dice];
+if (measured[1] > onCurve[1]) throw new Error('UnetDiceIou : la moyenne des Dice ne peut pas dépasser f(moyenne des IoU).');
+---
+
+<Legend
+  entries={[
+    { key: 'exact', label: t('diagram.unet.exact') },
+    { key: 'measured', label: t('diagram.unet.measured') },
+    { key: 'gd', label: 'D = J', dash: true },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="unet-dice-iou"
+    alt={t('diagram.unetDiceIou.alt')}
+    x={{ domain: [0, 1], label: t('diagram.unet.iou') }}
+    y={{ domain: [0, 1], label: t('diagram.unet.dice') }}
+    guides={[[[0, 0], [1, 1]]]}
+    series={[
+      { key: 'exact', points: curve, marker: 'none' },
+      { key: 'exact', points: [onCurve], marker: 'dot' },
+      { key: 'measured', points: [measured, onCurve], dash: true, marker: 'none' },
+      { key: 'measured', points: [measured], marker: 'dot' },
+    ]}
+  />
+</div>

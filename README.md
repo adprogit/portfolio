@@ -1,7 +1,7 @@
 # Portfolio
 
 Site statique en trois langues (en, fr, de) : on y arrive depuis un CV, on y lit
-dix projets et deux notes de cours, on repart. Astro 7 + Tailwind 4, aucune
+dix projets et trois notes de cours, on repart. Astro 7 + Tailwind 4, aucune
 dépendance JavaScript à l'exécution, et un échiquier rendu en direct par WebGPU
 sur la page du ray marcher.
 
@@ -67,8 +67,10 @@ par au moins un projet.
 ### Les notes
 
 Une note explique comment marche un projet : **Du rayon au pixel** (optique de
-rendu, racontée par le code du ray marcher) et **Méthodes de descente au banc
-d'essai** (rapport d'optimisation convexe).
+rendu, racontée par le code du ray marcher), **Méthodes de descente au banc
+d'essai** (rapport d'optimisation convexe) et **U-Net, pièce par pièce** (notes
+de cours en listes et formules ; tailles, paramètres, calcul et champ réceptif
+recalculés par `src/lib/unet.ts`).
 
 - **Les extraits disent d'où ils viennent** : champ `source` avec fichier et
   ligne. Un seul, marqué `source: 'course'`, a été écrit pour le cours.

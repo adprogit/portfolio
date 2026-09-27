@@ -1,0 +1,77 @@
+---
+/**
+ * Note U-Net — la convolution 3×3 avec bourrage : un anneau de zéros autour
+ * d'une entrée 5×5, le noyau posé sur le coin, et la sortie 5×5. La taille de
+ * sortie est calculée par la formule qu'affiche le schéma, pas écrite.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { arrowHead, type Vec } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const i = 5;
+const k = 3;
+const p = 1;
+const s = 1;
+const o = Math.floor((i + 2 * p - k) / s) + 1;
+if (o !== i) throw new Error('UnetConv : avec k = 3, p = 1, s = 1, la sortie doit garder la taille de l’entrée.');
+
+const cell = 26;
+const n = i + 2 * p;
+const X0 = 40;
+const Y0 = 40;
+const cells = Array.from({ length: n * n }, (_, idx) => {
+  const r = Math.floor(idx / n);
+  const c = idx % n;
+  const pad = r < p || c < p || r >= n - p || c >= n - p;
+  return { x: X0 + c * cell, y: Y0 + r * cell, pad };
+});
+
+const OX = 420;
+const OY = 66;
+const out = Array.from({ length: o * o }, (_, idx) => ({ x: OX + (idx % o) * cell, y: OY + Math.floor(idx / o) * cell }));
+
+// Le noyau sur le coin : son centre tombe sur le premier pixel de l'entrée.
+const kernelCenter: Vec = [X0 + (p + 0.5) * cell, Y0 + (p + 0.5) * cell];
+const outCenter: Vec = [OX + cell / 2, OY + cell / 2];
+const path: Vec[] = [
+  [X0 + (k / 2) * cell, Y0],
+  [X0 + (k / 2) * cell, Y0 - 16],
+  [outCenter[0], Y0 - 16],
+  [outCenter[0], OY],
+];
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 260" role="img" aria-label={t('diagram.unetConv.alt')}>
+  {cells.map(({ x, y, pad }) =>
+    pad ? (
+      <g>
+        <rect class="d-iso" x={x} y={y} width={cell} height={cell} />
+        <text class="d-label d-bare" x={x + cell / 2} y={y + cell / 2 + 4} text-anchor="middle">0</text>
+      </g>
+    ) : (
+      <rect class="d-shape" x={x} y={y} width={cell} height={cell} />
+    )
+  )}
+  <rect class="d-focus" x={X0} y={Y0} width={k * cell} height={k * cell} />
+  <circle class="d-dot-accent" cx={kernelCenter[0]} cy={kernelCenter[1]} r="3.5" />
+
+  {out.map(({ x, y }) => <rect class="d-shape" x={x} y={y} width={cell} height={cell} />)}
+  <rect class="d-focus" x={OX} y={OY} width={cell} height={cell} />
+  <circle class="d-dot-accent" cx={outCenter[0]} cy={outCenter[1]} r="3.5" />
+
+  <polyline class="d-ray" fill="none" points={path.map((q) => q.join(',')).join(' ')} />
+  <polygon class="d-head-accent" points={arrowHead(path[2], path[3])} />
+
+  <text class="d-label-accent" x={X0} y={Y0 - 22}>{t('diagram.unet.kernel')} {k} × {k}</text>
+  <text class="d-label" x={X0} y={Y0 + n * cell + 20}>
+    {t('diagram.unet.input')} {i} × {i} · {t('diagram.unet.padding')}, p = {p}
+  </text>
+  <text class="d-label" x={OX + (o * cell) / 2} y={OY + o * cell + 20} text-anchor="middle">
+    {t('diagram.unet.output')} {o} × {o}
+  </text>
+  <text class="d-label" x={OX} y="238">o = ⌊(i + 2p − k) / s⌋ + 1</text>
+  <text class="d-label-accent" x={OX} y="256">= ({i} + {2 * p} − {k}) / {s} + 1 = {o}</text>
+</svg>

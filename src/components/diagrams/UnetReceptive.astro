@@ -1,0 +1,69 @@
+---
+/**
+ * Note U-Net — le champ réceptif. Des carrés emboîtés sur l'image d'entrée,
+ * un par étage de l'encodeur, à l'échelle : ce que voit une unité de chaque
+ * étage. Le dernier déborde de l'image. Un carré en tirets donne, pour
+ * comparaison, les mêmes dix convolutions sans pooling.
+ *
+ * Les tailles viennent de `receptiveField()` : r ← r + (k − 1)·j, j ← j·s.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { config, receptiveField, stageReceptive } from '../../lib/unet';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const side = 200;
+const k = side / config.input;
+const C = { x: 170, y: 140 };
+const square = (r: number) => ({ x: C.x - (r * k) / 2, y: C.y - (r * k) / 2, s: r * k });
+
+const convs = receptiveField().filter((e) => e.layer.includes('conv')).length;
+const noPool = 1 + 2 * convs;
+const rows = [...stageReceptive()].reverse().map((e, i) => ({
+  ...e,
+  name: e.stage === 'bottleneck' ? t('diagram.unet.bottleneck') : e.stage,
+  sq: square(e.r),
+  ty: 56 + i * 34,
+}));
+const bottleneck = rows[0];
+if (bottleneck.r < config.input) throw new Error('UnetReceptive : le goulot ne voit plus toute l’image.');
+const dashed = square(noPool);
+const noPoolY = 56 + rows.length * 34;
+const LX = 340;
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 280" role="img" aria-label={t('diagram.unetReceptive.alt')}>
+  <rect class="d-shape" x={C.x - side / 2} y={C.y - side / 2} width={side} height={side} />
+  <text class="d-label d-bare" x={C.x - side / 2 + 8} y={C.y - side / 2 + 18}>
+    {t('diagram.unet.image')} · {config.input} × {config.input}
+  </text>
+
+  <rect class="d-rule" x={dashed.x} y={dashed.y} width={dashed.s} height={dashed.s} />
+
+  {rows.map((row, i) => (
+    <g>
+      <rect
+        class={i === 0 ? 'd-min' : 'd-probe'}
+        stroke-dasharray={i === 0 ? '6 4' : undefined}
+        x={row.sq.x}
+        y={row.sq.y}
+        width={row.sq.s}
+        height={row.sq.s}
+      />
+      <polyline
+        class="d-iso"
+        fill="none"
+        points={`${row.sq.x + row.sq.s},${row.sq.y} ${LX - 10},${row.ty - 4}`}
+      />
+      <text class={i === 0 ? 'd-label-probe' : 'd-label'} x={LX} y={row.ty}>
+        {row.name} · {row.r} px
+      </text>
+    </g>
+  ))}
+  <polyline class="d-iso" fill="none" points={`${dashed.x + dashed.s},${dashed.y + dashed.s} ${LX - 10},${noPoolY - 4}`} />
+  <text class="d-label" x={LX} y={noPoolY}>{t('diagram.unet.noPool')} · {noPool} px</text>
+
+  <text class="d-label" x={LX} y="24">r ← r + (k − 1)·j,  j ← j·s</text>
+</svg>

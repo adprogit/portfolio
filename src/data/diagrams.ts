@@ -25,6 +25,13 @@ export const diagramKeys = [
   'benchDimension',
   'benchRate',
   'benchLineSearch',
+  // U-Net, pièce par pièce — calculés depuis `src/lib/unet.ts`.
+  'unetConv',
+  'unetResample',
+  'unetArchitecture',
+  'unetReceptive',
+  'unetBudget',
+  'unetDiceIou',
 ] as const;
 
 export type DiagramKey = (typeof diagramKeys)[number];
