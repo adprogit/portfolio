@@ -26,6 +26,8 @@ import type { ResolvedProject } from '../data/projects';
 import { toneVar } from '../data/projects';
 import { projectPath, type Locale } from '../i18n/config';
 import { useT } from '../i18n/ui';
+import PixelSprite from './PixelSprite.astro';
+import { sprites } from '../lib/sprites';
 
 interface Props {
   project: ResolvedProject;
@@ -34,6 +36,8 @@ interface Props {
 
 const { project, lang } = Astro.props;
 const t = useT(lang);
+// Prototype : seuls quelques projets ont un sprite ; les autres gardent leur ligne telle quelle.
+const hasSprite = project.slug in sprites;
 ---
 
 <a
@@ -42,6 +46,9 @@ const t = useT(lang);
   class="row group block py-4"
   style={`--row-accent: ${toneVar[project.tone]}`}
 >
+  <span class={hasSprite ? 'flex items-start gap-4 sm:gap-5' : 'block'}>
+  {hasSprite && <PixelSprite slug={project.slug} />}
+  <span class="block min-w-0 flex-1">
   <span class="flex items-baseline justify-between gap-5">
     <span class="row-title font-mono text-lg font-semibold tracking-tight text-balance text-ink-strong sm:text-xl">
       {project.title}
@@ -78,5 +85,7 @@ const t = useT(lang);
         {project.metrics.join('  ·  ')}
       </span>
     )}
+  </span>
+  </span>
   </span>
 </a>
