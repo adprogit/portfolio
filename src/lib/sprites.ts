@@ -219,6 +219,101 @@ function pulmonix(): Sprite {
   };
 }
 
+function itkVtk(): Sprite {
+  // Deux examens de la même tête. Le second arrive décalé et tourné, puis se
+  // recale sur le premier : le pas diminue à chaque itération, comme la
+  // descente de gradient à pas régulier du projet. Une fois aligné, la
+  // tumeur croît depuis son germe, anneau par anneau, sans quitter son masque
+  // — la croissance de région par seuillage connecté.
+  const centre = { x: 15, y: 15 };
+  const head = (a: number) => ({ x: centre.x + 10.5 * Math.cos(a), y: centre.y + 12 * Math.sin(a) });
+  const inTumor = (x: number, y: number) =>
+    ((x - 19) / 3.4) ** 2 + ((y - 10) / 2.8) ** 2 <= 1 || ((x - 21) / 1.8) ** 2 + ((y - 12.5) / 1.6) ** 2 <= 1;
+  const seed = { x: 19, y: 10 };
+
+  // Distance de chaque pixel de la tumeur au germe, en pas de voisinage
+  // (parcours en largeur, 4-connexe) : l'ordre dans lequel la région croît.
+  const grown = new Map<string, number>([[`${seed.x},${seed.y}`, 0]]);
+  for (let queue = [seed]; queue.length; ) {
+    const next: typeof queue = [];
+    for (const p of queue) {
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        const q = { x: p.x + dx, y: p.y + dy };
+        const key = `${q.x},${q.y}`;
+        if (!grown.has(key) && inTumor(q.x, q.y)) {
+          grown.set(key, grown.get(`${p.x},${p.y}`)! + 1);
+          next.push(q);
+        }
+      }
+    }
+    queue = next;
+  }
+  const farthest = Math.max(...grown.values());
+
+  // Le premier examen, fixe : le contour du crâne, un cou, la tumeur tramée.
+  const base = new Layer(SIZE);
+  for (let k = 0; k < 140; k++) {
+    const p = head((2 * Math.PI * k) / 140);
+    if (p.y < 25.5) base.set(p.x, p.y, 'l');
+  }
+  base.line(10, 25, 11, 31, 'l').line(20, 25, 21, 31, 'l');
+  for (const key of grown.keys()) {
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    if (dither(x, y, 0.5)) base.set(x, y, 'r');
+  }
+
+  // Le second examen : un décalage et une rotation, divisés à chaque pas.
+  const start = { dx: 4, dy: 3, angle: 0.45 };
+  const relaxation = 0.62;
+  const registrationFrames = 10;
+  const moved = (f: number) => {
+    const k = Math.pow(relaxation, f);
+    const [c, s] = [Math.cos(start.angle * k), Math.sin(start.angle * k)];
+    return {
+      forward: (x: number, y: number) => ({
+        x: centre.x + c * (x - centre.x) - s * (y - centre.y) + start.dx * k,
+        y: centre.y + s * (x - centre.x) + c * (y - centre.y) + start.dy * k,
+      }),
+      // L'inverse, pour remplir la tumeur déplacée sans trous : chaque pixel
+      // de l'écran cherche d'où il vient, comme un rééchantillonnage ITK.
+      inverse: (x: number, y: number) => {
+        const [u, v] = [x - start.dx * k - centre.x, y - start.dy * k - centre.y];
+        return { x: centre.x + c * u + s * v, y: centre.y - s * u + c * v };
+      },
+    };
+  };
+
+  return {
+    size: SIZE,
+    base,
+    frames: frames((layer, f) => {
+      if (f < registrationFrames) {
+        const move = moved(f);
+        for (let k = 0; k < 140; k++) {
+          const p = head((2 * Math.PI * k) / 140);
+          if (p.y >= 25.5) continue;
+          const q = move.forward(p.x, p.y);
+          layer.set(q.x, q.y, 'i');
+        }
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
+            const q = move.inverse(x, y);
+            if (inTumor(Math.round(q.x), Math.round(q.y))) layer.set(x, y, 'i');
+          }
+        }
+        return;
+      }
+      // Aligné : la région croît depuis le germe jusqu'à remplir la tumeur.
+      const reach = ((f - registrationFrames + 1) / (FRAMES - registrationFrames)) * farthest;
+      for (const [key, d] of grown) {
+        const [x, y] = key.split(',').map(Number) as [number, number];
+        if (d <= reach) layer.set(x, y, 'a');
+      }
+      layer.set(seed.x, seed.y, 'a');
+    }),
+  };
+}
+
 function unet(): Sprite {
   // L'image, puis le masque qui s'affine comme remonte le décodeur : blocs de
   // 8, de 4, de 2, puis au pixel — la résolution de chaque niveau.
@@ -400,6 +495,7 @@ export const sprites: Record<string, () => Sprite> = {
   'cuda-motion': cudaMotion,
   'neural-texture': neuralTexture,
   pulmonix,
+  'itk-vtk': itkVtk,
   'unet-coco': unet,
   'automata-vision': automata,
   'raiders-sudoku': sudoku,

@@ -63,6 +63,7 @@ import itkTranslationSagittalImage from '../assets/itk-vtk/translation-sagittal.
 import itkRigidSagittalImage from '../assets/itk-vtk/rigid-sagittal.png';
 import itkSegT1Image from '../assets/itk-vtk/segmentation-t1.png';
 import itkSegT2Image from '../assets/itk-vtk/segmentation-t2.png';
+import itkVtkViewImage from '../assets/itk-vtk/vtk-follow-up.png';
 
 /** Un visuel fixe ou animé. */
 export interface Shot {
@@ -4861,6 +4862,7 @@ const itkVtk: ProjectDef = {
     rigidSagittal: { image: itkRigidSagittalImage, background: 'light' },
     segT1: { image: itkSegT1Image, background: 'light' },
     segT2: { image: itkSegT2Image, background: 'light' },
+    vtkView: { image: itkVtkViewImage, background: 'dark' },
   },
   cover: 'effect',
   gallery: ['rigidSagittal'],
@@ -4895,6 +4897,10 @@ const itkVtk: ProjectDef = {
         segT2: {
           alt: 'Crop of the same MRI slice on the registered second scan, with the tumor outlined in red, 7374 voxels.',
           caption: 'Second scan, registered: 7374 voxels.',
+        },
+        vtkView: {
+          alt: 'VTK window split in two: on the left the first exam, a faint skull in volume rendering with the tumor as a red surface; on the right the second exam, the tumor in cyan. Overlaid: 7429.0 mm³, then 7374.0 mm³, a change of −55.0 mm³ (−0.7 %).',
+          caption: 'The VTK view: first exam on the left, second on the right, volumes overlaid.',
         },
       },
       sections: [
@@ -4981,6 +4987,7 @@ const itkVtk: ProjectDef = {
               content:
                 'VTK shows both exams in one window, first on the left, second on the right, with an interactive camera. The skull is a faint volume rendering, there as a landmark; the tumor is a surface extracted by marching cubes, smoothed and coloured, with its volume and the change overlaid.',
             },
+            { type: 'media', shot: 'vtkView' },
             {
               type: 'text',
               content:
@@ -5021,6 +5028,10 @@ const itkVtk: ProjectDef = {
         segT2: {
           alt: 'Recadrage de la même coupe IRM sur le second examen recalé, avec la tumeur cernée de rouge, 7374 voxels.',
           caption: 'Second examen, recalé : 7374 voxels.',
+        },
+        vtkView: {
+          alt: 'Fenêtre VTK coupée en deux : à gauche le premier examen, un crâne très transparent en rendu volumique et la tumeur en surface rouge ; à droite le second, la tumeur en cyan. En surimpression : 7429,0 mm³, puis 7374,0 mm³, une variation de −55,0 mm³ (−0,7 %).',
+          caption: 'La vue VTK : premier examen à gauche, second à droite, volumes en surimpression.',
         },
       },
       sections: [
@@ -5107,6 +5118,7 @@ const itkVtk: ProjectDef = {
               content:
                 'VTK montre les deux examens dans une même fenêtre, le premier à gauche, le second à droite, avec une caméra interactive. Le crâne est un rendu volumique très transparent, là comme repère ; la tumeur est une surface extraite par marching cubes, lissée et colorée, avec son volume et la variation en surimpression.',
             },
+            { type: 'media', shot: 'vtkView' },
             {
               type: 'text',
               content:
@@ -5147,6 +5159,10 @@ const itkVtk: ProjectDef = {
         segT2: {
           alt: 'Ausschnitt derselben MRT-Schicht in der registrierten zweiten Aufnahme, Tumor rot umrandet, 7374 Voxel.',
           caption: 'Zweite Aufnahme, registriert: 7374 Voxel.',
+        },
+        vtkView: {
+          alt: 'VTK-Fenster in zwei Hälften: links die erste Untersuchung, ein sehr transparenter Schädel als Volumenrendering und der Tumor als rote Oberfläche; rechts die zweite, der Tumor in Cyan. Eingeblendet: 7429,0 mm³, dann 7374,0 mm³, eine Veränderung von −55,0 mm³ (−0,7 %).',
+          caption: 'Die VTK-Ansicht: erste Untersuchung links, zweite rechts, Volumen eingeblendet.',
         },
       },
       sections: [
@@ -5233,6 +5249,7 @@ const itkVtk: ProjectDef = {
               content:
                 'VTK zeigt beide Untersuchungen in einem Fenster, die erste links, die zweite rechts, mit interaktiver Kamera. Der Schädel ist ein sehr transparentes Volumenrendering, als Orientierung; der Tumor ist eine per Marching Cubes extrahierte, geglättete und eingefärbte Oberfläche, mit seinem Volumen und der Veränderung als Einblendung.',
             },
+            { type: 'media', shot: 'vtkView' },
             {
               type: 'text',
               content:
