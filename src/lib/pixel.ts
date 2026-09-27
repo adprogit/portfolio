@@ -1,7 +1,7 @@
 /**
  * Des sprites en pixels, calculés à la compilation.
  *
- * Un sprite est une petite grille (24 × 24 environ) et une suite d'images.
+ * Un sprite est une petite grille (32 × 32) et une suite d'images.
  * Chaque pixel porte un rôle, jamais une couleur : `a` l'accent du projet,
  * `i` l'encre douce, `l` le trait des cadres, `r` le filet. C'est la feuille
  * de style qui leur donne une couleur, dans le thème courant — un GIF, lui,
@@ -44,6 +44,42 @@ export class Layer {
     for (let k = 0; k < steps; k++) {
       const a = (2 * Math.PI * k) / steps;
       this.set(cx + r * Math.cos(a), cy + r * Math.sin(a), role);
+    }
+    return this;
+  }
+
+  /** Un disque plein ; `role` peut dépendre du pixel (ombrage, tramage). */
+  disc(cx: number, cy: number, r: number, role: Role | ((x: number, y: number) => Role | null)) {
+    for (let y = Math.floor(cy - r); y <= Math.ceil(cy + r); y++) {
+      for (let x = Math.floor(cx - r); x <= Math.ceil(cx + r); x++) {
+        if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) continue;
+        const v = typeof role === 'function' ? role(x, y) : role;
+        if (v) this.set(x, y, v);
+      }
+    }
+    return this;
+  }
+
+  /** Un segment (Bresenham). */
+  line(x0: number, y0: number, x1: number, y1: number, role: Role) {
+    [x0, y0, x1, y1] = [x0, y0, x1, y1].map(Math.round);
+    const dx = Math.abs(x1 - x0);
+    const dy = -Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      this.set(x0, y0, role);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) {
+        err += dy;
+        x0 += sx;
+      }
+      if (e2 <= dx) {
+        err += dx;
+        y0 += sy;
+      }
     }
     return this;
   }
@@ -131,4 +167,6 @@ const FONT: Record<string, string[]> = {
   a: ['...', '##.', '.##', '#.#', '###'],
   b: ['#..', '#..', '##.', '#.#', '##.'],
   '|': ['.#.', '.#.', '.#.', '.#.', '.#.'],
+  '+': ['...', '.#.', '###', '.#.', '...'],
+  '*': ['...', '#.#', '.#.', '#.#', '...'],
 };
