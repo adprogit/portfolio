@@ -19,7 +19,7 @@ import {
   SHADER,
   UNIFORM_BYTES,
 } from './shader-wgsl';
-import { GAME, KNIGHT, placements, replay } from './game';
+import { GAME, KNIGHT, placements, replay, type HalfMove } from './game';
 
 /* ── Cadrage, repris tel quel de src/main.cpp ───────────────────── */
 
@@ -54,6 +54,8 @@ export interface ChessHandle {
   /** Demi-coup affiché, de 0 (position initiale) à `plyCount - 1`. */
   readonly ply: number;
   setPly(ply: number): void;
+  /** Remplace la partie (un PGN déposé, par exemple) et revient à son début. */
+  load(moves: HalfMove[], start?: Uint8Array): void;
   destroy(): void;
 }
 
@@ -154,7 +156,7 @@ export async function mountChessBoard(
 
   /* ── Position ─────────────────────────────────────────────────── */
 
-  const positions = replay(GAME);
+  let positions = replay(GAME);
   let ply = 0;
   let pieceCount = 0;
 
@@ -378,7 +380,9 @@ export async function mountChessBoard(
   request();
 
   return {
-    plyCount: positions.length,
+    get plyCount() {
+      return positions.length;
+    },
 
     get ply() {
       return ply;
@@ -389,6 +393,13 @@ export async function mountChessBoard(
       if (clamped === ply) return;
       ply = clamped;
       uploadPosition(ply);
+      request();
+    },
+
+    load(moves, start) {
+      positions = replay(moves, start);
+      ply = 0;
+      uploadPosition(0);
       request();
     },
 

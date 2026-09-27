@@ -145,8 +145,8 @@ export const GAME: HalfMove[] = [
  * Toutes les positions de la partie, de la position initiale au mat.
  * `positions[n]` est l'échiquier **après** `n` demi-coups.
  */
-export function replay(moves: HalfMove[] = GAME): Uint8Array[] {
-  const board = startPosition();
+export function replay(moves: HalfMove[] = GAME, start: Uint8Array = startPosition()): Uint8Array[] {
+  const board = start.slice();
   const out: Uint8Array[] = [board.slice()];
 
   for (const move of moves) {

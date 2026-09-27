@@ -25,9 +25,13 @@ const t = useT(lang);
 const moves = GAME.map((move) => move.san);
 ---
 
-<figure class="reveal" data-chess>
+<figure class="reveal group" data-chess>
   <div class="overflow-hidden rounded border border-rule bg-paper-raised">
-    <div data-chess-stage class="relative aspect-[4/3] bg-paper-sunken">
+    {/* Le cadre accepte un PGN déposé ; il se souligne pendant le survol. */}
+    <div
+      data-chess-stage
+      class="relative aspect-[4/3] bg-paper-sunken -outline-offset-4 outline-brand group-data-[dragging=true]:outline-2 group-data-[dragging=true]:outline-dashed"
+    >
       {/* Petit badge « en direct », discret, par-dessus le rendu. */}
       <p
         data-chess-live
@@ -94,6 +98,27 @@ const moves = GAME.map((move) => move.san);
         disabled>{t('chess.reset')}</button
       >
     </div>
+
+    {/*
+      La partie affichée, et de quoi en charger une autre. Le fichier est lu
+      dans le navigateur : rien ne part, rien n'est gardé.
+    */}
+    <div data-chess-controls class="flex items-center gap-3 border-t border-rule px-4 py-2.5">
+      <p
+        data-chess-game
+        data-bad={t('chess.bad')}
+        data-too-big={t('chess.tooBig')}
+        class="min-w-0 flex-1 truncate text-xs text-ink-soft"
+      >
+        {t('chess.origin')}
+      </p>
+      <label
+        class="shrink-0 cursor-pointer rounded-lg border border-line px-2.5 py-1.5 font-mono text-xs text-ink-soft transition-colors focus-within:border-brand focus-within:text-brand hover:border-brand hover:text-brand"
+      >
+        {t('chess.load')}
+        <input data-chess-file type="file" accept=".pgn,text/plain,application/x-chess-pgn" class="sr-only" />
+      </label>
+    </div>
   </div>
 
   <figcaption class="mt-3 text-sm leading-relaxed text-pretty text-ink-soft">
@@ -113,7 +138,11 @@ const moves = GAME.map((move) => move.san);
 
   const setup = () => {
     const root = document.querySelector<HTMLElement>('[data-chess]');
-    if (!root) return;
+    // `setup` tourne au chargement *et* sur `astro:page-load`, qui se déclenche
+    // aussi à la première visite : sans ce drapeau, deux rendus se montaient
+    // sur le même canvas, chacun avec ses écouteurs et sa partie.
+    if (!root || root.dataset.chessBound) return;
+    root.dataset.chessBound = '1';
 
     const canvas = root.querySelector<HTMLCanvasElement>('[data-chess-canvas]');
     const status = root.querySelector<HTMLElement>('[data-chess-status]');
@@ -121,10 +150,12 @@ const moves = GAME.map((move) => move.san);
     const next = root.querySelector<HTMLButtonElement>('[data-chess-next]');
     const reset = root.querySelector<HTMLButtonElement>('[data-chess-reset]');
     const label = root.querySelector<HTMLElement>('[data-chess-move]');
-    if (!canvas || !status || !prev || !next || !reset || !label) return;
+    const game = root.querySelector<HTMLElement>('[data-chess-game]');
+    const file = root.querySelector<HTMLInputElement>('[data-chess-file]');
+    if (!canvas || !status || !prev || !next || !reset || !label || !game || !file) return;
 
     const data = document.querySelector<HTMLScriptElement>('[data-chess-moves]');
-    const moves: string[] = data ? JSON.parse(data.textContent ?? '[]') : [];
+    let moves: string[] = data ? JSON.parse(data.textContent ?? '[]') : [];
 
     const strings = {
       start: label.textContent ?? '',
@@ -159,6 +190,58 @@ const moves = GAME.map((move) => move.san);
     prev.addEventListener('click', () => go((handle?.ply ?? 0) - 1));
     next.addEventListener('click', () => go((handle?.ply ?? 0) + 1));
     reset.addEventListener('click', () => go(0));
+
+    /*
+     * Un PGN déposé ou choisi : lu ici, jamais envoyé. Ce qui en sort — noms,
+     * coups — ne s'affiche qu'en texte. Une partie illisible laisse la
+     * précédente en place et dit où la lecture a buté.
+     */
+    const loadFile = async (picked: File | undefined) => {
+      if (!picked || !handle) return;
+      const { MAX_PGN_BYTES, parsePgn, PgnError } = await import('../lib/chess/pgn');
+
+      if (picked.size > MAX_PGN_BYTES) {
+        label.textContent = game.dataset.tooBig ?? '';
+        return;
+      }
+      try {
+        const parsed = parsePgn(await picked.text());
+        if (!parsed.moves.length) throw new PgnError(1, '—');
+        handle.load(parsed.moves, parsed.start);
+        moves = parsed.moves.map((move) => move.san);
+        game.textContent =
+          [parsed.players || picked.name, parsed.result].filter(Boolean).join(' · ');
+        refresh();
+      } catch (error) {
+        const where = error instanceof PgnError ? error : new PgnError(0, '');
+        label.textContent = (game.dataset.bad ?? '')
+          .replace('{n}', String(where.ply))
+          .replace('{san}', where.san);
+      }
+    };
+
+    file.addEventListener('change', () => {
+      void loadFile(file.files?.[0]);
+      file.value = '';
+    });
+
+    // Glisser-déposer sur la figure. `dragleave` se déclenche aussi en passant
+    // d'un enfant à l'autre : on ne retire l'accent qu'en sortant vraiment.
+    root.addEventListener('dragover', (event) => {
+      if (!handle || !event.dataTransfer?.types.includes('Files')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+      root.dataset.dragging = 'true';
+    });
+    root.addEventListener('dragleave', (event) => {
+      if (!root.contains(event.relatedTarget as Node | null)) delete root.dataset.dragging;
+    });
+    root.addEventListener('drop', (event) => {
+      if (!handle) return;
+      event.preventDefault();
+      delete root.dataset.dragging;
+      void loadFile(event.dataTransfer?.files[0]);
+    });
 
     // Le module de rendu ne descend qu'à l'approche de la figure.
     const start = async () => {
