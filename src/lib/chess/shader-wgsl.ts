@@ -177,7 +177,7 @@ fn piece_base_large(p: vec3f) -> f32 {
   return max(r, -dcut);
 }
 
-/* ── Les six pièces (src/sdf/chess/*_sdf.cpp) ───────────────────── */
+/* ── Les six pièces (src/sdf/chess/<pièce>_sdf.cpp) ───────────────────── */
 
 fn sdf_pawn(p: vec3f) -> f32 {
   let q = vec2f(length(p.xz), p.y);

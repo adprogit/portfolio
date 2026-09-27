@@ -66,6 +66,36 @@ const stripComments = (text) =>
   text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 
 /**
+ * Les commentaires d'un WGSL, lus comme WGSL les lit : **les blocs s'imbriquent**.
+ * Une ouverture de bloc égarée dans un commentaire (un chemin du genre
+ * « chess/<étoile>_sdf.cpp ») en ouvre un second, et la première fermeture ne
+ * referme plus que celui-là. Le reste du shader disparaît dans le
+ * commentaire, et le module est refusé. La regex du C++ ne voit pas ce cas.
+ *
+ * Renvoie le code sans ses commentaires, ou `null` si un bloc reste ouvert.
+ */
+function stripWgslComments(text) {
+  let out = '';
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const pair = text.slice(i, i + 2);
+    if (pair === '/*') {
+      depth++;
+      i++;
+    } else if (depth && pair === '*/') {
+      depth--;
+      i++;
+    } else if (!depth && pair === '//') {
+      while (i < text.length && text[i] !== '\n') i++;
+      out += '\n';
+    } else if (!depth) {
+      out += text[i];
+    }
+  }
+  return depth ? null : out;
+}
+
+/**
  * Les nombres d'un morceau de code, sans les entiers nus : un `2` d'indice ou
  * un compteur de boucle n'a rien à voir avec une constante de géométrie, et
  * les comparer produirait du bruit.
@@ -83,7 +113,9 @@ const difference = (a, b) => [...a].filter((value) => !b.has(value)).sort((x, y)
 
 function checkStructure(label, wgsl, entries) {
   const problems = [];
-  const code = stripComments(wgsl).replace(/@[A-Za-z_]\w*(\s*\([^)]*\))?/g, '');
+  const stripped = stripWgslComments(wgsl);
+  if (stripped === null) return [`${label} — commentaire /* … */ jamais refermé (les blocs s'imbriquent en WGSL)`];
+  const code = stripped.replace(/@[A-Za-z_]\w*(\s*\([^)]*\))?/g, '');
 
   for (const [open, close] of [
     ['{', '}'],
