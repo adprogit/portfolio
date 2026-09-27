@@ -1,0 +1,29 @@
+---
+/**
+ * Cours cel shading — le terme de rim de `fragment.shd` : smoothstep(0,6 ; 0,8 ;
+ * 1 − N·V), tracé en fonction de l'angle entre la normale et la vue. Les deux
+ * angles où il commence et finit sont calculés.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { RIM, rimAngle, rimEdge } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const points = Array.from({ length: 181 }, (_, i) => [i / 2, rimEdge(i / 2)] as [number, number]);
+const a0 = rimAngle(RIM.low);
+const a1 = rimAngle(RIM.high);
+---
+
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="toon-rim"
+    alt={t('diagram.toonRim.alt')}
+    x={{ domain: [0, 90], label: t('diagram.toon.angle') }}
+    y={{ domain: [0, 1], label: t('diagram.toon.darken') }}
+    guides={[[[a0, 0], [a0, 1]], [[a1, 0], [a1, 1]]]}
+    series={[{ key: 'rim', points, marker: 'none' }]}
+  />
+</div>

@@ -57,6 +57,13 @@ export interface ChessHandle {
   destroy(): void;
 }
 
+/**
+ * Pourquoi l'échiquier n'a pas démarré. Les deux cas ne se disent pas pareil :
+ * sans WebGPU, c'est le navigateur ; avec, c'est le rendu qui a échoué — un
+ * shader refusé ne doit pas se faire passer pour un navigateur trop vieux.
+ */
+export type ChessFailure = 'unsupported' | 'failed';
+
 /** Pipeline de l'échiquier, construit une fois pour le périphérique partagé. */
 let pipeline: Promise<GPURenderPipeline | null> | null = null;
 
@@ -78,28 +85,29 @@ async function buildPipeline(shared: SharedGpu): Promise<GPURenderPipeline | nul
 }
 
 /**
- * Monte l'échiquier sur un canvas. Résout sur `null` si WebGPU manque —
- * l'appelant affiche alors son repli.
+ * Monte l'échiquier sur un canvas. Résout sur la raison de l'échec si le
+ * rendu ne peut pas démarrer — l'appelant affiche alors son repli.
  */
 export async function mountChessBoard(
   canvas: HTMLCanvasElement
-): Promise<ChessHandle | null> {
+): Promise<ChessHandle | ChessFailure> {
   const shared = await requestSharedGpu();
-  if (!shared || shared.lost) return null;
+  if (!shared) return 'unsupported';
+  if (shared.lost) return 'failed';
 
   pipeline ??= buildPipeline(shared);
   const built = await pipeline;
-  if (!built) return null;
+  if (!built) return 'failed';
 
   const context = canvas.getContext('webgpu');
-  if (!context) return null;
+  if (!context) return 'unsupported';
 
   const { device, format } = shared;
 
   try {
     context.configure({ device, format, alphaMode: 'opaque' });
   } catch {
-    return null;
+    return 'failed';
   }
 
   /* ── Tampons ──────────────────────────────────────────────────── */

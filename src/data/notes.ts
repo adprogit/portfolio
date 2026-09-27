@@ -34,6 +34,8 @@ import {
 import * as optim from '../lib/optim';
 // L'architecture du U-Net, recalculée à la compilation.
 import * as unetLib from '../lib/unet';
+// Le cel shading de ToonGL, recalculé à la compilation.
+import * as toonLib from '../lib/toon';
 
 interface NoteText {
   /** Surtitre en mono, sans le `//`. */
@@ -2368,6 +2370,784 @@ const unetFacts = (): Record<string, Fact> => {
   };
 };
 
+/* ── Cel shading, bande par bande ──────────────────────────────────── */
+
+/*
+ * Un cours sur le cel shading en général, à partir de ToonGL (`pogl/`), avec
+ * un aparté sur les god rays. En listes et en formules, comme les notes U-Net.
+ * Les extraits sont ceux du dépôt, ligne citée ; les chiffres viennent de
+ * `src/lib/toon.ts`, qui reproduit la rampe, le rim, les contours et la passe
+ * de god rays du projet, et sont vérifiés ici.
+ */
+const cel: NoteDef = {
+  slug: 'cel-shading',
+  tone: 'cyan',
+  category: 'rendering',
+  project: 'toongl',
+  facts: () => toonFacts(),
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      kicker: 'rendering · stylisation',
+      title: 'Cel shading,',
+      titleAccent: 'band by band',
+      description:
+        'Course notes on cel shading, from the ToonGL renderer: quantized lighting through a ramp texture, rim, screen-space outlines from depth and normals, the order of the passes — and an aside on god rays. Figures computed with the project’s own formulas.',
+      sections: [
+        {
+          id: 'what',
+          kicker: '01',
+          title: 'What cel shading is',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Goal: the look of cel animation, painted on celluloid — flat colour areas, a hard boundary between light and shadow, ink lines.',
+                'Three ingredients: quantized diffuse lighting; outlines; optionally a stylized highlight or rim.',
+                'In ToonGL: the ramp and the rim in each object’s fragment shader; outlines and god rays in one post-process pass over an offscreen HDR framebuffer.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonSphere',
+              caption:
+                'One sphere, the project’s formulas: continuous Lambert; the 4-band ramp, read without filtering; then the rim, which darkens the silhouette.',
+            },
+          ],
+        },
+        {
+          id: 'bands',
+          kicker: '02',
+          title: 'From Lambert to bands',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Lambert: I = albedo · max(N·L, 0). Cel shading keeps N·L but passes it through a step function: I = albedo · f(N·L).',
+            },
+            {
+              type: 'list',
+              items: [
+                'f in the shader: floor(N·L · n) / (n − 1) — n equal bands, no artist control.',
+                'f in a 1D ramp texture indexed by N·L — ToonGL’s choice: bands of any width and colour, changed without recompiling.',
+                'f with a smoothstep around each threshold, one pixel wide (fwidth(N·L)): antialiased band edges.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonRampBuild',
+              caption:
+                'The ramp: 256 texels, levels bands. The floor min_shade keeps the darkest band above black — 0.2 for bark, 0.4 for foliage and grass.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRamp',
+              caption:
+                'Computed with the same function, read as the GPU reads it. Thresholds at N·L = {{t1}}, {{t2}} and {{t3}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Bark: {{barkBands}}. Foliage and grass: {{foliageBands}}.',
+                'GL_NEAREST on the ramp: a band boundary is a hard step. With GL_LINEAR, the GPU would blend two texels and soften every edge.',
+                'GL_CLAMP_TO_EDGE: N·L = 1 reads the last texel instead of wrapping round to the first.',
+                'The ramp is uniform and grey: generate_toon_ramp receives the bark texture but does not use it. Colour comes from the albedo that multiplies the ramp.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonShade',
+              caption:
+                'The whole object shader: N·L indexes the ramp, the albedo and the sun colour multiply it, the rim darkens the edge.',
+            },
+          ],
+        },
+        {
+          id: 'rim',
+          kicker: '03',
+          title: 'Rim',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'rim = 1 − N·V: 0 facing the camera, 1 at the silhouette. smoothstep({{rimLowC}}, {{rimHighC}}, rim) turns it into a dark border where the surface turns away.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRim',
+              caption: 'Zero up to θ = {{rimA0}}°, full from θ = {{rimA1}}° — where 1 − cos θ reaches {{rimLow}} and {{rimHigh}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Cost: one dot product and one smoothstep per fragment, no extra pass.',
+                'Limit: the width follows the curvature. On a flat face N·V is constant — all or nothing. A real outline pass is still needed.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'outlines',
+          kicker: '04',
+          title: 'Outlines',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Inverted hull: redraw each mesh inflated along its normals, back faces only, in ink. Thickness in object space; one extra draw per object.',
+                'Rim, above: free, but tied to curvature.',
+                'Edge detection in screen space, on depth and normals — ToonGL’s choice: one pass for the whole image, whatever the meshes.',
+              ],
+            },
+            {
+              type: 'text',
+              content:
+                'Depth edge: e = Σ |lin(q) − lin(c)| / lin(c) over the 4 neighbours q. Normal edge: e = Σ (1 − n_c·n_q). Outline = max(smoothstep({{edgeLowC}}, {{edgeHighC}}, e_depth), smoothstep({{normalLowC}}, {{normalHighC}}, e_normal)).',
+            },
+            {
+              type: 'code',
+              snippet: 'toonDepthEdges',
+              caption:
+                'Depth is linearized first — the depth buffer stores a hyperbolic value. Dividing by the centre depth keeps the threshold valid at any distance.',
+            },
+            {
+              type: 'code',
+              snippet: 'toonNormalEdges',
+              caption:
+                'Normals rebuilt from depth: on each axis, the one-sided difference with the smaller depth change, so a neighbour across a silhouette does not bend the normal.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonEdges',
+              caption:
+                'The shader’s thresholds, on a scene ray-cast at build time. Depth finds the cube against the wall; normals find the floor–wall line and the cube’s front edge — at half ink ({{creaseRaw}} before the threshold): there, the smaller one-sided difference crosses the edge.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Depth alone misses creases within one surface; normals alone miss a silhouette in front of a parallel surface. max() keeps both.',
+                'Thickness: outline_thickness scales the neighbour offset — one pixel by default.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonOutlineMix',
+              caption:
+                'The ink colour is raised to the gamma, so it is still the chosen colour after the final pow(1/γ).',
+            },
+          ],
+        },
+        {
+          id: 'passes',
+          kicker: '05',
+          title: 'Order of the passes',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Scene passes into an offscreen framebuffer: RGB16F colour and depth. RGB16F because god rays need values above 1.',
+                'Post pass: outlines → god rays → warm/cool grading → vignette → gamma.',
+                'Outlines before rays: the ink stays crisp, the light passes over it.',
+                'Ground: no shadow map. Wrapped diffuse, (N·L + w) / (1 + w) with w = 0.5, softens the terminator instead of casting shadows.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'god-rays',
+          kicker: '06',
+          title: 'Aside: god rays',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Crepuscular rays: sunlight scattered towards the eye by particles in the air, interrupted by occluders. The shafts are lit air between shadows.',
+                'Volumetric methods march in 3D through a shadow map. The screen-space version (Mitchell, 2007) only has the image: it blurs bright pixels radially towards the sun.',
+                'Per pixel: {{samples}} samples towards the sun’s projection, over {{densityPct}} % of the distance. Each adds s · max(0, max(s) − 1) · weight · decayⁱ; the sum is multiplied by the exposure.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'godRaysPass',
+              caption:
+                'sclip.w > 0: the sun is in front of the camera. Only the part of a sample above 1 counts — hence the HDR framebuffer.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysImage',
+              caption:
+                'The project’s pass on an 80 × 50 sunset. The dots: one ground pixel’s march, every tenth sample. Only the white area — above 1 — gives light. It spreads as a halo towards the ground, darker behind the trunks that cut the sun: at this size the shafts stay faint.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysDecay',
+              caption:
+                'weight · decayⁱ. At {{decay}}, the last sample weighs {{lastWeight}} of the first, and the march is worth {{effective}} full samples — {{eff90}} at 0.9, {{eff99}} at 0.99.',
+            },
+            {
+              type: 'list',
+              items: [
+                'An occluder does not stop the march: it is one dark sample among others. A small, unbroken bright area gives a round halo, not shafts.',
+                'Cost: {{samples}} texture reads per pixel, {{reads1080}} per 1080p frame. The usual fix: half resolution, then upsample.',
+                'Sun behind the camera: nothing (the sclip.w guard). Sun off screen: the samples clamp at the border.',
+                'Reference: K. Mitchell, “Volumetric Light Scattering as a Post-Process”, GPU Gems 3, ch. 13, 2007.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '07',
+          title: 'Going further',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Hard specular: step(threshold, N·H) — a flat highlight instead of a lobe.',
+                'Banded shadows: quantize a shadow map too, so cast shadows keep the flat look.',
+                'Antialiased bands: smoothstep over fwidth(N·L) at each threshold.',
+                'Hatching instead of flat tones: tonal art maps (Praun et al., 2001).',
+                'A ramp per material, picked from the texture: the argument generate_toon_ramp already receives.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      kicker: 'rendu · stylisation',
+      title: 'Cel shading,',
+      titleAccent: 'bande par bande',
+      description:
+        'Notes de cours sur le cel shading, à partir du moteur ToonGL : éclairage quantifié par une texture-rampe, rim, contours en espace écran depuis la profondeur et les normales, ordre des passes — et un aparté sur les god rays. Figures calculées avec les formules du projet.',
+      sections: [
+        {
+          id: 'what',
+          kicker: '01',
+          title: 'Ce qu’est le cel shading',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'But : l’aspect de l’animation sur cellulo — des aplats, une frontière nette entre lumière et ombre, des traits d’encre.',
+                'Trois ingrédients : un éclairage diffus quantifié ; des contours ; au choix un reflet ou un bord stylisés.',
+                'Dans ToonGL : la rampe et le rim dans le fragment shader de chaque objet ; contours et god rays dans une seule passe de post-traitement, sur un framebuffer HDR hors écran.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonSphere',
+              caption:
+                'Une sphère, les formules du projet : Lambert continu ; la rampe à 4 bandes, lue sans filtrage ; puis le rim, qui assombrit la silhouette.',
+            },
+          ],
+        },
+        {
+          id: 'bands',
+          kicker: '02',
+          title: 'De Lambert aux bandes',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Lambert : I = albédo · max(N·L, 0). Le cel shading garde N·L mais le fait passer par une fonction en escalier : I = albédo · f(N·L).',
+            },
+            {
+              type: 'list',
+              items: [
+                'f dans le shader : floor(N·L · n) / (n − 1) — n bandes égales, aucun contrôle artistique.',
+                'f dans une texture-rampe 1D indexée par N·L — le choix de ToonGL : des bandes de largeur et de couleur libres, modifiables sans recompiler.',
+                'f avec un smoothstep autour de chaque seuil, large d’un pixel (fwidth(N·L)) : des bords de bande anticrénelés.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonRampBuild',
+              caption:
+                'La rampe : 256 texels, levels bandes. Le plancher min_shade garde la bande la plus sombre au-dessus du noir — 0,2 pour l’écorce, 0,4 pour le feuillage et l’herbe.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRamp',
+              caption:
+                'Calculée par la même fonction, lue comme la lit le GPU. Seuils en N·L = {{t1}}, {{t2}} et {{t3}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Écorce : {{barkBands}}. Feuillage et herbe : {{foliageBands}}.',
+                'GL_NEAREST sur la rampe : une frontière de bande est une marche franche. Avec GL_LINEAR, le GPU mélangerait deux texels et adoucirait chaque bord.',
+                'GL_CLAMP_TO_EDGE : N·L = 1 lit le dernier texel au lieu de reboucler sur le premier.',
+                'La rampe est uniforme et grise : generate_toon_ramp reçoit la texture d’écorce mais ne s’en sert pas. La couleur vient de l’albédo qui multiplie la rampe.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonShade',
+              caption:
+                'Tout le shader d’objet : N·L indexe la rampe, l’albédo et la couleur du soleil la multiplient, le rim assombrit le bord.',
+            },
+          ],
+        },
+        {
+          id: 'rim',
+          kicker: '03',
+          title: 'Le rim',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'rim = 1 − N·V : 0 face à la caméra, 1 sur la silhouette. smoothstep({{rimLowC}}, {{rimHighC}}, rim) en fait un bord sombre là où la surface se détourne.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRim',
+              caption: 'Nul jusqu’à θ = {{rimA0}}°, plein à partir de θ = {{rimA1}}° — là où 1 − cos θ atteint {{rimLow}} et {{rimHigh}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Coût : un produit scalaire et un smoothstep par fragment, aucune passe de plus.',
+                'Limite : la largeur suit la courbure. Sur une face plane, N·V est constant — tout ou rien. Une vraie passe de contours reste nécessaire.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'outlines',
+          kicker: '04',
+          title: 'Les contours',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Coque inversée : redessiner chaque maillage gonflé le long de ses normales, faces arrière seulement, à l’encre. Épaisseur en espace objet ; un tracé de plus par objet.',
+                'Le rim, ci-dessus : gratuit, mais lié à la courbure.',
+                'Détection de bords en espace écran, sur la profondeur et les normales — le choix de ToonGL : une passe pour toute l’image, quels que soient les maillages.',
+              ],
+            },
+            {
+              type: 'text',
+              content:
+                'Bord de profondeur : e = Σ |lin(q) − lin(c)| / lin(c) sur les 4 voisins q. Bord de normales : e = Σ (1 − n_c·n_q). Contour = max(smoothstep({{edgeLowC}}, {{edgeHighC}}, e_prof), smoothstep({{normalLowC}}, {{normalHighC}}, e_norm)).',
+            },
+            {
+              type: 'code',
+              snippet: 'toonDepthEdges',
+              caption:
+                'La profondeur est d’abord linéarisée — le tampon de profondeur stocke une valeur hyperbolique. Diviser par la profondeur du centre garde le seuil valable à toute distance.',
+            },
+            {
+              type: 'code',
+              snippet: 'toonNormalEdges',
+              caption:
+                'Normales reconstruites depuis la profondeur : sur chaque axe, la différence d’un seul côté dont l’écart de profondeur est le plus faible, pour qu’un voisin de l’autre côté d’une silhouette ne torde pas la normale.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonEdges',
+              caption:
+                'Les seuils du shader, sur une scène lancée en rayons à la compilation. La profondeur trouve le cube devant le mur ; les normales trouvent la ligne sol–mur et l’arête avant du cube — à demi-encre ({{creaseRaw}} avant le seuil) : là, la plus faible des deux différences traverse l’arête.',
+            },
+            {
+              type: 'list',
+              items: [
+                'La profondeur seule manque les plis d’une même surface ; les normales seules manquent une silhouette devant une surface parallèle. max() garde les deux.',
+                'Épaisseur : outline_thickness multiplie le décalage des voisins — un pixel par défaut.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonOutlineMix',
+              caption:
+                'La couleur d’encre est élevée au gamma, pour être encore la couleur choisie après le pow(1/γ) final.',
+            },
+          ],
+        },
+        {
+          id: 'passes',
+          kicker: '05',
+          title: 'L’ordre des passes',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Passes de scène dans un framebuffer hors écran : couleur RGB16F et profondeur. RGB16F parce que les god rays ont besoin de valeurs au-dessus de 1.',
+                'Passe de post-traitement : contours → god rays → étalonnage chaud/froid → vignette → gamma.',
+                'Les contours avant les rayons : l’encre reste nette, la lumière passe par-dessus.',
+                'Le sol : pas de shadow map. Un diffus enveloppé, (N·L + w) / (1 + w) avec w = 0,5, adoucit la limite d’ombre au lieu de projeter des ombres.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'god-rays',
+          kicker: '06',
+          title: 'Aparté : les god rays',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Rayons crépusculaires : la lumière du soleil diffusée vers l’œil par les particules de l’air, interrompue par les obstacles. Les faisceaux sont de l’air éclairé entre deux ombres.',
+                'Les méthodes volumétriques marchent en 3D à travers une shadow map. La version en espace écran (Mitchell, 2007) n’a que l’image : elle floute radialement les pixels lumineux vers le soleil.',
+                'Par pixel : {{samples}} échantillons vers la projection du soleil, sur {{densityPct}} % de la distance. Chacun ajoute s · max(0, max(s) − 1) · weight · decayⁱ ; la somme est multipliée par l’exposition.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'godRaysPass',
+              caption:
+                'sclip.w > 0 : le soleil est devant la caméra. Seule la part d’un échantillon au-dessus de 1 compte — d’où le framebuffer HDR.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysImage',
+              caption:
+                'La passe du projet sur un couchant de 80 × 50. Les points : la marche d’un pixel du sol, un échantillon sur dix. Seule la zone blanche — au-dessus de 1 — éclaire. Elle s’étale en halo vers le sol, plus sombre derrière les troncs qui coupent le soleil : à cette taille, les faisceaux restent discrets.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysDecay',
+              caption:
+                'weight · decayⁱ. À {{decay}}, le dernier échantillon pèse {{lastWeight}} du premier, et la marche vaut {{effective}} échantillons pleins — {{eff90}} à 0,9, {{eff99}} à 0,99.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Un obstacle n’arrête pas la marche : c’est un échantillon sombre parmi d’autres. Une zone lumineuse petite et d’un seul tenant donne un halo rond, pas des faisceaux.',
+                'Coût : {{samples}} lectures de texture par pixel, {{reads1080}} par image 1080p. La parade habituelle : demi-résolution, puis suréchantillonnage.',
+                'Soleil derrière la caméra : rien (la garde sur sclip.w). Soleil hors écran : les échantillons se bloquent au bord.',
+                'Référence : K. Mitchell, « Volumetric Light Scattering as a Post-Process », GPU Gems 3, chap. 13, 2007.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '07',
+          title: 'Pour aller plus loin',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Spéculaire franc : step(seuil, N·H) — un reflet en aplat au lieu d’un lobe.',
+                'Ombres en bandes : quantifier aussi une shadow map, pour que les ombres portées gardent l’aspect en aplats.',
+                'Bandes anticrénelées : un smoothstep sur fwidth(N·L) à chaque seuil.',
+                'Des hachures au lieu des aplats : les tonal art maps (Praun et al., 2001).',
+                'Une rampe par matériau, tirée de la texture : l’argument que generate_toon_ramp reçoit déjà.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      kicker: 'Rendering · Stilisierung',
+      title: 'Cel Shading,',
+      titleAccent: 'Band für Band',
+      description:
+        'Kursnotizen zum Cel Shading, ausgehend vom Renderer ToonGL: über eine Rampentextur quantisierte Beleuchtung, Rim, Konturen im Bildraum aus Tiefe und Normalen, die Reihenfolge der Passes — und ein Exkurs zu God Rays. Abbildungen mit den Formeln des Projekts berechnet.',
+      sections: [
+        {
+          id: 'what',
+          kicker: '01',
+          title: 'Was Cel Shading ist',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Ziel: der Look des Zeichentrickfilms auf Folie — Farbflächen, eine harte Grenze zwischen Licht und Schatten, Tuschelinien.',
+                'Drei Zutaten: quantisierte diffuse Beleuchtung; Konturen; wahlweise ein stilisiertes Glanzlicht oder ein Rand.',
+                'In ToonGL: Rampe und Rim im Fragment-Shader jedes Objekts; Konturen und God Rays in einem einzigen Post-Processing-Pass über einem HDR-Framebuffer außerhalb des Bildschirms.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonSphere',
+              caption:
+                'Eine Kugel, die Formeln des Projekts: stetiger Lambert; die Rampe mit 4 Bändern, ungefiltert gelesen; dann der Rim, der die Silhouette abdunkelt.',
+            },
+          ],
+        },
+        {
+          id: 'bands',
+          kicker: '02',
+          title: 'Von Lambert zu Bändern',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Lambert: I = Albedo · max(N·L, 0). Cel Shading behält N·L, schickt es aber durch eine Treppenfunktion: I = Albedo · f(N·L).',
+            },
+            {
+              type: 'list',
+              items: [
+                'f im Shader: floor(N·L · n) / (n − 1) — n gleiche Bänder, keine künstlerische Kontrolle.',
+                'f in einer 1D-Rampentextur, indiziert mit N·L — die Wahl von ToonGL: Bänder beliebiger Breite und Farbe, ohne Neukompilieren änderbar.',
+                'f mit einem smoothstep um jede Schwelle, ein Pixel breit (fwidth(N·L)): geglättete Bandkanten.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonRampBuild',
+              caption:
+                'Die Rampe: 256 Texel, levels Bänder. Der Boden min_shade hält das dunkelste Band über Schwarz — 0,2 für Rinde, 0,4 für Laub und Gras.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRamp',
+              caption:
+                'Mit derselben Funktion berechnet, so gelesen, wie die GPU sie liest. Schwellen bei N·L = {{t1}}, {{t2}} und {{t3}}.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Rinde: {{barkBands}}. Laub und Gras: {{foliageBands}}.',
+                'GL_NEAREST auf der Rampe: Eine Bandgrenze ist eine harte Stufe. Mit GL_LINEAR würde die GPU zwei Texel mischen und jede Kante weicher machen.',
+                'GL_CLAMP_TO_EDGE: N·L = 1 liest das letzte Texel, statt auf das erste umzubrechen.',
+                'Die Rampe ist gleichmäßig und grau: generate_toon_ramp erhält die Rinden-Textur, verwendet sie aber nicht. Die Farbe kommt von der Albedo, die die Rampe multipliziert.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonShade',
+              caption:
+                'Der ganze Objekt-Shader: N·L indiziert die Rampe, Albedo und Sonnenfarbe multiplizieren sie, der Rim dunkelt den Rand ab.',
+            },
+          ],
+        },
+        {
+          id: 'rim',
+          kicker: '03',
+          title: 'Rim',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'rim = 1 − N·V: 0 zur Kamera hin, 1 an der Silhouette. smoothstep({{rimLowC}}, {{rimHighC}}, rim) macht daraus einen dunklen Rand, wo sich die Fläche abwendet.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonRim',
+              caption: 'Null bis θ = {{rimA0}}°, voll ab θ = {{rimA1}}° — dort, wo 1 − cos θ {{rimLow}} und {{rimHigh}} erreicht.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Kosten: ein Skalarprodukt und ein smoothstep pro Fragment, kein zusätzlicher Pass.',
+                'Grenze: Die Breite folgt der Krümmung. Auf einer ebenen Fläche ist N·V konstant — alles oder nichts. Ein echter Kontur-Pass bleibt nötig.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'outlines',
+          kicker: '04',
+          title: 'Konturen',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Inverted Hull: jedes Mesh entlang seiner Normalen aufgebläht erneut zeichnen, nur Rückseiten, in Tusche. Dicke im Objektraum; ein zusätzlicher Draw pro Objekt.',
+                'Der Rim, oben: kostenlos, aber an die Krümmung gebunden.',
+                'Kantenerkennung im Bildraum, auf Tiefe und Normalen — die Wahl von ToonGL: ein Pass für das ganze Bild, unabhängig von den Meshes.',
+              ],
+            },
+            {
+              type: 'text',
+              content:
+                'Tiefenkante: e = Σ |lin(q) − lin(c)| / lin(c) über die 4 Nachbarn q. Normalenkante: e = Σ (1 − n_c·n_q). Kontur = max(smoothstep({{edgeLowC}}, {{edgeHighC}}, e_Tiefe), smoothstep({{normalLowC}}, {{normalHighC}}, e_Normale)).',
+            },
+            {
+              type: 'code',
+              snippet: 'toonDepthEdges',
+              caption:
+                'Die Tiefe wird zuerst linearisiert — der Tiefenpuffer speichert einen hyperbolischen Wert. Die Division durch die Tiefe im Zentrum hält die Schwelle in jeder Entfernung gültig.',
+            },
+            {
+              type: 'code',
+              snippet: 'toonNormalEdges',
+              caption:
+                'Normalen aus der Tiefe rekonstruiert: auf jeder Achse die einseitige Differenz mit der kleineren Tiefenänderung, damit ein Nachbar jenseits einer Silhouette die Normale nicht verbiegt.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'toonEdges',
+              caption:
+                'Die Schwellen des Shaders, auf einer beim Bauen per Raycasting erzeugten Szene. Die Tiefe findet den Würfel vor der Wand; die Normalen finden die Linie Boden–Wand und die vordere Würfelkante — mit halber Tusche ({{creaseRaw}} vor der Schwelle): Dort überquert die kleinere einseitige Differenz die Kante.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Die Tiefe allein übersieht Falten innerhalb einer Fläche; die Normalen allein übersehen eine Silhouette vor einer parallelen Fläche. max() behält beide.',
+                'Dicke: outline_thickness skaliert den Versatz der Nachbarn — standardmäßig ein Pixel.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'toonOutlineMix',
+              caption:
+                'Die Tuschefarbe wird mit dem Gamma potenziert, damit sie nach dem abschließenden pow(1/γ) noch die gewählte Farbe ist.',
+            },
+          ],
+        },
+        {
+          id: 'passes',
+          kicker: '05',
+          title: 'Die Reihenfolge der Passes',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Szenen-Passes in einen Framebuffer außerhalb des Bildschirms: Farbe RGB16F und Tiefe. RGB16F, weil God Rays Werte über 1 brauchen.',
+                'Post-Pass: Konturen → God Rays → warm/kalt-Grading → Vignette → Gamma.',
+                'Konturen vor den Strahlen: Die Tusche bleibt scharf, das Licht legt sich darüber.',
+                'Boden: keine Shadow Map. Ein Wrapped Diffuse, (N·L + w) / (1 + w) mit w = 0,5, macht die Schattengrenze weicher, statt Schatten zu werfen.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'god-rays',
+          kicker: '06',
+          title: 'Exkurs: God Rays',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Dämmerungsstrahlen: Sonnenlicht, das von Teilchen in der Luft zum Auge gestreut und von Hindernissen unterbrochen wird. Die Strahlen sind beleuchtete Luft zwischen Schatten.',
+                'Volumetrische Verfahren marschieren in 3D durch eine Shadow Map. Die Bildraum-Variante (Mitchell, 2007) hat nur das Bild: Sie verwischt helle Pixel radial zur Sonne hin.',
+                'Pro Pixel: {{samples}} Samples zur Projektion der Sonne, über {{densityPct}} % der Strecke. Jedes addiert s · max(0, max(s) − 1) · weight · decayⁱ; die Summe wird mit der Belichtung multipliziert.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'godRaysPass',
+              caption:
+                'sclip.w > 0: Die Sonne liegt vor der Kamera. Nur der Anteil eines Samples über 1 zählt — daher der HDR-Framebuffer.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysImage',
+              caption:
+                'Der Pass des Projekts auf einem Sonnenuntergang von 80 × 50. Die Punkte: der Weg eines Bodenpixels, jedes zehnte Sample. Nur die weiße Fläche — über 1 — spendet Licht. Sie breitet sich als Halo zum Boden aus, dunkler hinter den Stämmen, die die Sonne schneiden: in dieser Größe bleiben die Strahlen schwach.',
+            },
+            {
+              type: 'diagram',
+              diagram: 'godRaysDecay',
+              caption:
+                'weight · decayⁱ. Bei {{decay}} wiegt das letzte Sample {{lastWeight}} des ersten, und der Marsch ist {{effective}} volle Samples wert — {{eff90}} bei 0,9, {{eff99}} bei 0,99.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Ein Hindernis stoppt den Marsch nicht: Es ist ein dunkles Sample unter anderen. Eine kleine, zusammenhängende helle Fläche ergibt einen runden Halo, keine Strahlen.',
+                'Kosten: {{samples}} Texturzugriffe pro Pixel, {{reads1080}} pro 1080p-Bild. Die übliche Abhilfe: halbe Auflösung, dann hochskalieren.',
+                'Sonne hinter der Kamera: nichts (die Prüfung auf sclip.w). Sonne außerhalb des Bildes: Die Samples klemmen am Rand.',
+                'Referenz: K. Mitchell, „Volumetric Light Scattering as a Post-Process“, GPU Gems 3, Kap. 13, 2007.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '07',
+          title: 'Weiterführend',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Harter Glanz: step(Schwelle, N·H) — ein flaches Glanzlicht statt einer Keule.',
+                'Schatten in Bändern: auch eine Shadow Map quantisieren, damit Schlagschatten den Flächenlook behalten.',
+                'Geglättete Bänder: ein smoothstep über fwidth(N·L) an jeder Schwelle.',
+                'Schraffur statt Farbflächen: Tonal Art Maps (Praun et al., 2001).',
+                'Eine Rampe pro Material, aus der Textur gewonnen: das Argument, das generate_toon_ramp bereits erhält.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+/**
+ * Les chiffres du cours de cel shading, recalculés par `src/lib/toon.ts` avec
+ * les constantes du projet. Chaque affirmation du texte qui en dépend est
+ * vérifiée ici.
+ */
+const toonFacts = (): Record<string, Fact> => {
+  const barkTexels = toonLib.rampTexels(toonLib.RAMP.levels, toonLib.RAMP.barkFloor);
+  const foliageTexels = toonLib.rampTexels(toonLib.RAMP.levels, toonLib.RAMP.foliageFloor);
+  const bark = toonLib.bands(barkTexels);
+  const foliage = toonLib.bands(foliageTexels);
+  const values = (b: { value: number }[]) => (locale: Locale) =>
+    list(b.map((x) => fixed(x.value, 2)(locale).replace(/0$/, '').replace(/[.,]0$/, '')), locale);
+
+  // La valeur brute du filtre des normales sur l'arête avant du cube : le pixel
+  // de cube dont les quatre voisins sont du cube et qui répond le plus.
+  const scene = toonLib.edgeScene(64, 40);
+  let crease = 0;
+  for (let j = 1; j < scene.length - 1; j++) {
+    for (let i = 1; i < scene[0].length - 1; i++) {
+      const inside = [scene[j][i], scene[j][i + 1], scene[j][i - 1], scene[j + 1][i], scene[j - 1][i]].every((p) => p.id === 2);
+      if (inside) crease = Math.max(crease, toonLib.normalEdge(scene, i, j));
+    }
+  }
+  const O = toonLib.OUTLINE;
+  const R = toonLib.RAYS;
+  const eff = toonLib.effectiveSamples();
+  const eff90 = toonLib.effectiveSamples(0.9);
+  const eff99 = toonLib.effectiveSamples(0.99);
+  const reads = 1920 * 1080 * R.samples;
+
+  claim(bark.length === toonLib.RAMP.levels && foliage.length === toonLib.RAMP.levels, 'la rampe a 4 bandes');
+  claim(bark[0].value < foliage[0].value, 'le plancher de l’écorce est plus bas que celui du feuillage');
+  claim(bark.at(-1)!.value === 1 && foliage.at(-1)!.value === 1, 'la bande la plus claire vaut 1');
+  claim(toonLib.sampleRamp(1, barkTexels) === 1, 'N·L = 1 lit le dernier texel');
+  claim(crease > O.normalLow && crease < O.normalHigh, 'l’arête avant du cube sort à demi-encre');
+  claim(eff < R.samples && eff90 < eff && eff < eff99, 'la marche vaut moins que ses 100 échantillons');
+
+  return {
+    t1: bark[1].from,
+    t2: bark[2].from,
+    t3: bark[3].from,
+    barkBands: values(bark),
+    foliageBands: values(foliage),
+    // Dans une formule de code, les constantes s'écrivent comme dans le code,
+    // avec un point : « smoothstep(0,6, 0,8, x) » serait illisible.
+    rimLowC: () => String(toonLib.RIM.low),
+    rimHighC: () => String(toonLib.RIM.high),
+    edgeLowC: () => String(O.edgeLow),
+    edgeHighC: () => String(O.edgeHigh),
+    normalLowC: () => String(O.normalLow),
+    normalHighC: () => String(O.normalHigh),
+    rimLow: toonLib.RIM.low,
+    rimHigh: toonLib.RIM.high,
+    rimA0: fixed(toonLib.rimAngle(toonLib.RIM.low), 1),
+    rimA1: fixed(toonLib.rimAngle(toonLib.RIM.high), 1),
+    edgeLow: O.edgeLow,
+    edgeHigh: O.edgeHigh,
+    normalLow: O.normalLow,
+    normalHigh: O.normalHigh,
+    creaseRaw: fixed(crease, 2),
+    samples: R.samples,
+    densityPct: Math.round(R.density * 100),
+    decay: R.decay,
+    lastWeight: (locale: Locale) => `${fixed(R.decay ** (R.samples - 1) * 100, 1)(locale)} %`,
+    effective: fixed(eff, 1),
+    eff90: fixed(eff90, 1),
+    eff99: fixed(eff99, 1),
+    reads1080: (locale: Locale) =>
+      locale === 'en' ? `${Math.round(reads / 1e6)} million` : `${Math.round(reads / 1e6)} millions`.replace('millions', locale === 'de' ? 'Millionen' : 'millions'),
+  };
+};
+
 /** Un nombre à la manière de la langue ; les très petits en notation 10⁻ⁿ. */
 function num(x: number | string, locale: Locale): string {
   if (typeof x === 'string') x = Number(x);
@@ -2401,11 +3181,11 @@ function fill(text: string, facts: Record<string, Fact>, locale: Locale): string
 }
 
 /*
- * L'ordre d'affichage : le cours d'optique, le banc d'essai des méthodes de
- * descente, puis les notes U-Net. Les notes SVM viendront des deux notebooks de TP (`ocvx/`) une
+ * L'ordre d'affichage : le cours d'optique, puis le cel shading (le rendu
+ * ensemble), le banc d'essai des méthodes de descente, puis les notes U-Net. Les notes SVM viendront des deux notebooks de TP (`ocvx/`) une
  * fois ceux-ci complétés.
  */
-const all: NoteDef[] = [optics, descent, unet];
+const all: NoteDef[] = [optics, cel, descent, unet];
 
 /** En production, les brouillons n'existent pas : ni page, ni ligne, ni lien. */
 const definitions = all.filter((def) => !def.draft || import.meta.env.DEV);

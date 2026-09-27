@@ -1,0 +1,64 @@
+---
+/**
+ * Cours cel shading, aparté — les god rays, calculés par la passe du projet
+ * (`godRays`, mêmes réglages que `post_fragment.shd`) sur une petite scène au
+ * couchant. À gauche la scène en HDR, les pixels au-dessus de 1 — les seuls
+ * qui éclairent — en blanc ; la marche d'un pixel vers le soleil est tracée
+ * dessus, un point tous les 10 échantillons. À droite, scène + rayons.
+ *
+ * Palette fixe (`.gr-*`) : une image rendue ne change pas avec le thème.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { ditherLevel, godRays, levelPaths, RAYS, raysScene } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const scene = raysScene(80, 50);
+const rays = godRays(scene);
+const HDR = 6;
+
+const left = scene.img.map((row, y) => row.map((v, x) => (v > 1 ? HDR : ditherLevel(Math.min(1, v / 1.0), 6, x, y))));
+const right = scene.img.map((row, y) =>
+  row.map((v, x) => {
+    const c = v + rays[y][x];
+    // Le blanc reste réservé à ce qui dépasse 1 dans la scène ; le reste est
+    // ramené sur les six tons, sans saturer.
+    return v > 1 ? HDR : ditherLevel(Math.min(1, Math.pow(c / 3.2, 0.7)), 6, x, y);
+  })
+);
+
+const scale = 3;
+const P = [
+  { grid: left, x: 32, label: t('diagram.rays.scene') },
+  { grid: right, x: 368, label: t('diagram.rays.result') },
+];
+const Y = 8;
+const cls = ['gr-0', 'gr-1', 'gr-2', 'gr-3', 'gr-4', 'gr-5', 'gr-6'];
+
+// La marche d'un pixel du sol vers le soleil, un point tous les 10 pas.
+const from = { x: 70, y: 46 };
+const su = scene.sun.x / scene.w;
+const sv = scene.sun.y / scene.h;
+const u0 = (from.x + 0.5) / scene.w;
+const v0 = (from.y + 0.5) / scene.h;
+const march = Array.from({ length: RAYS.samples / 10 + 1 }, (_, k) => {
+  const i = k * 10;
+  const f = (i * RAYS.density) / RAYS.samples;
+  return { x: P[0].x + (u0 - (u0 - su) * f) * scene.w * scale, y: Y + (v0 - (v0 - sv) * f) * scene.h * scale };
+});
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 200" role="img" aria-label={t('diagram.godRaysImage.alt')}>
+  {P.map(({ grid, x, label }) => (
+    <g>
+      <g shape-rendering="crispEdges">
+        {levelPaths(grid, scale, x, Y).map(({ level, d }) => <path class={cls[level]} d={d} />)}
+      </g>
+      <text class="d-label" x={x + (scene.w * scale) / 2} y={Y + scene.h * scale + 22} text-anchor="middle">{label}</text>
+    </g>
+  ))}
+  <line class="d-ray" x1={march[0].x} y1={march[0].y} x2={march.at(-1)!.x} y2={march.at(-1)!.y} />
+  {march.map((m) => <circle class="d-dot-accent" cx={m.x.toFixed(1)} cy={m.y.toFixed(1)} r="2.2" />)}
+</svg>

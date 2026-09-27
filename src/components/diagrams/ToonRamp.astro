@@ -1,0 +1,43 @@
+---
+/**
+ * Cours cel shading — la rampe de lumière. N·L en abscisse, la valeur lue
+ * dans la texture 256 × 1 en ordonnée : Lambert (la diagonale), puis les deux
+ * rampes du projet, calculées par la même fonction que `build_lightness_ramp`
+ * et lues au plus proche, comme le fait le GPU.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { RAMP, rampTexels, sampleRamp } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const xs = Array.from({ length: 513 }, (_, i) => i / 512);
+const curve = (floor: number) => {
+  const texels = rampTexels(RAMP.levels, floor);
+  return xs.map((x) => [x, sampleRamp(x, texels)] as [number, number]);
+};
+---
+
+<Legend
+  entries={[
+    { key: 'lambert', label: 'Lambert', dash: true },
+    { key: 'ramp2', label: t('diagram.toon.rampBark') },
+    { key: 'ramp4', label: t('diagram.toon.rampFoliage') },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="toon-ramp"
+    alt={t('diagram.toonRamp.alt')}
+    x={{ domain: [0, 1], label: 'N·L' }}
+    y={{ domain: [0, 1], label: t('diagram.toon.factor') }}
+    series={[
+      { key: 'lambert', points: [[0, 0], [1, 1]], dash: true, marker: 'none' },
+      { key: 'ramp2', points: curve(RAMP.barkFloor), marker: 'none' },
+      { key: 'ramp4', points: curve(RAMP.foliageFloor), marker: 'none' },
+    ]}
+  />
+</div>

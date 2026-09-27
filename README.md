@@ -1,7 +1,7 @@
 # Portfolio
 
 Site statique en trois langues (en, fr, de) : on y arrive depuis un CV, on y lit
-dix projets et trois notes de cours, on repart. Astro 7 + Tailwind 4, aucune
+dix projets et quatre notes de cours, on repart. Astro 7 + Tailwind 4, aucune
 dépendance JavaScript à l'exécution, et un échiquier rendu en direct par WebGPU
 sur la page du ray marcher.
 
@@ -25,7 +25,7 @@ npm run verify     # tous les contrôles — à lancer avant de publier
 | Script | Ce qu'il fait |
 |---|---|
 | `check` | Types (`astro check`) |
-| `shaders` | Compare les shaders WGSL au C++ dont ils sont le portage (`../raymarcher/`, ignoré s'il est absent) |
+| `shaders` | Compare le WGSL de l'échiquier au C++ dont il est le portage ([zugzwang](https://github.com/Neww3r/zugzwang) cloné en `../raymarcher/`, ignoré s'il est absent) |
 | `prune` | Retire de `dist/` les médias que rien ne référence |
 | `csp` | Remplace `'unsafe-inline'` par les empreintes des scripts inline |
 | `contrast` | Contrastes WCAG AA de la palette, dans les deux thèmes |
@@ -77,9 +77,11 @@ par au moins un projet.
 
 Une note explique comment marche un projet : **Du rayon au pixel** (optique de
 rendu, racontée par le code du ray marcher), **Méthodes de descente au banc
-d'essai** (rapport d'optimisation convexe) et **U-Net, pièce par pièce** (notes
+d'essai** (rapport d'optimisation convexe), **U-Net, pièce par pièce** (notes
 de cours en listes et formules ; tailles, paramètres, calcul et champ réceptif
-recalculés par `src/lib/unet.ts`).
+recalculés par `src/lib/unet.ts`) et **Cel shading, bande par bande** (partie
+du projet ToonGL, avec un aparté sur les god rays ; rampe, contours et rayons
+rejoués par `src/lib/toon.ts` avec les constantes des shaders).
 
 - **Les extraits disent d'où ils viennent** : champ `source` avec fichier et
   ligne. Un seul, marqué `source: 'course'`, a été écrit pour le cours.
@@ -114,9 +116,15 @@ Le `GPUDevice` est partagé par tout l'onglet (`src/lib/gpu/device.ts`) et le
 module n'est chargé que quand la figure approche de l'écran. Sans WebGPU, la
 figure dit pourquoi et le reste de la page fonctionne.
 
-> Le shader n'a pas pu être exécuté dans l'environnement de compilation (pas de
-> GPU). `npm run shaders` vérifie ce qu'un script peut vérifier ; le reste est à
-> confirmer dans un navigateur.
+Sans GPU, le rendu se vérifie dans Chromium avec l'adaptateur logiciel
+SwiftShader (`--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader
+--use-vulkan=swiftshader`) : c'est ainsi qu'a été trouvé le seul bug du
+portage. Les commentaires `/* */` **s'imbriquent** en WGSL, et un
+`chess/*_sdf.cpp` dans un commentaire avalait tout le reste du shader.
+`npm run shaders` lit maintenant les commentaires comme WGSL.
+
+Un échec de rendu (shader refusé, périphérique perdu) ne s'affiche pas comme un
+navigateur sans WebGPU : les deux ont leur phrase.
 
 ## Sécurité et vie privée
 
@@ -157,6 +165,6 @@ pas : ne pas les publier tels quels.
 
 ## Reste à faire
 
-- Vérifier l'échiquier dans un navigateur avec WebGPU.
+- Vérifier l'échiquier sur un vrai GPU (vérifié jusqu'ici sous SwiftShader).
 - Réencoder la vidéo (2,4 Mo pour 3 s) si ffmpeg est disponible :
   `ffmpeg -i detection.mp4 -an -c:v libvpx-vp9 -crf 34 -b:v 0 detection.webm`.

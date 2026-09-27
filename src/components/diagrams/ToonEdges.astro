@@ -1,0 +1,63 @@
+---
+/**
+ * Cours cel shading — les deux filtres de contour, sur une petite scène lancée
+ * en rayons (`edgeScene`) : un mur, un sol, un cube tourné de 45°. Quatre
+ * cartes : la profondeur linéaire, le filtre de profondeur, le filtre des
+ * normales reconstruites, et le résultat — bandes de la rampe et contour
+ * = max des deux. Seuils et formules de `post_fragment.shd`.
+ *
+ * Le bord de l'image est rogné de deux pixels : hors de l'image, la texture est
+ * lue en `CLAMP_TO_EDGE`, le voisin vaut le centre, la normale reconstruite
+ * n'a plus de sens — et son voisin compare sa normale à celle-là.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { ditherLevel, edgeScene, levelPaths, normalize, outlines, RAMP, rampTexels, bands, sampleRamp } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const scene = edgeScene(64, 40);
+const maps = outlines(scene);
+const crop = <T,>(g: T[][]) => g.slice(2, -2).map((row) => row.slice(2, -2));
+
+const lins = scene.flat().map((p) => p.lin);
+const [near, far] = [Math.min(...lins), Math.max(...lins)];
+const depth = crop(scene.map((row, y) => row.map((p, x) => ditherLevel(1 - (p.lin - near) / (far - near), 5, x, y))));
+
+// Un contour : l'encre (5) sur fond clair (4), tramé selon sa force.
+const inked = (m: number[][]) => crop(m.map((row, y) => row.map((v, x) => (ditherLevel(v, 2, x, y) === 1 ? 5 : 4))));
+
+const L = normalize([-0.5, 0.6, 0.62]);
+const texels = rampTexels(RAMP.levels, RAMP.foliageFloor);
+const levels = bands(texels).map((b) => b.value);
+const shaded = crop(
+  scene.map((row, y) =>
+    row.map((p, x) => {
+      if (ditherLevel(maps.outline[y][x], 2, x, y) === 1) return 5;
+      const ndotl = Math.max(0, p.n[0] * L[0] + p.n[1] * L[1] + p.n[2] * L[2]);
+      return levels.indexOf(sampleRamp(ndotl, texels)) + 1;
+    })
+  )
+);
+
+const scale = 4;
+const W = 60 * scale;
+const H = 36 * scale;
+const panels = [
+  { grid: depth, label: t('diagram.toon.depth'), x: 52, y: 8 },
+  { grid: inked(maps.depth), label: t('diagram.toon.depthEdges'), x: 348, y: 8 },
+  { grid: inked(maps.normal), label: t('diagram.toon.normalEdges'), x: 52, y: 190 },
+  { grid: shaded, label: t('diagram.toon.outline'), x: 348, y: 190 },
+];
+const cls = ['tn-0', 'tn-1', 'tn-2', 'tn-3', 'tn-4', 'tn-ink'];
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 364" role="img" aria-label={t('diagram.toonEdges.alt')} shape-rendering="crispEdges">
+  {panels.map(({ grid, label, x, y }) => (
+    <g>
+      {levelPaths(grid, scale, x, y).map(({ level, d }) => <path class={cls[level]} d={d} />)}
+      <text class="d-label" x={x + W / 2} y={y + H + 22} text-anchor="middle">{label}</text>
+    </g>
+  ))}
+</svg>

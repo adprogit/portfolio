@@ -40,6 +40,12 @@ import UnetArchitecture from './UnetArchitecture.astro';
 import UnetReceptive from './UnetReceptive.astro';
 import UnetBudget from './UnetBudget.astro';
 import UnetDiceIou from './UnetDiceIou.astro';
+import ToonSphere from './ToonSphere.astro';
+import ToonRamp from './ToonRamp.astro';
+import ToonRim from './ToonRim.astro';
+import ToonEdges from './ToonEdges.astro';
+import GodRaysImage from './GodRaysImage.astro';
+import GodRaysDecay from './GodRaysDecay.astro';
 
 interface Props {
   diagram: DiagramKey;
@@ -76,6 +82,12 @@ const components = {
   unetReceptive: UnetReceptive,
   unetBudget: UnetBudget,
   unetDiceIou: UnetDiceIou,
+  toonSphere: ToonSphere,
+  toonRamp: ToonRamp,
+  toonRim: ToonRim,
+  toonEdges: ToonEdges,
+  godRaysImage: GodRaysImage,
+  godRaysDecay: GodRaysDecay,
 } satisfies Record<DiagramKey, unknown>;
 
 const Component = components[diagram];

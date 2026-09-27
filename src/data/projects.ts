@@ -748,6 +748,153 @@ if (depth > 0 && params.kr.luminance() > 0.0f)
         (unit - params.kr) * final_color + params.kr * refl_color;
 }`,
   },
+  /*
+   * ── Extraits du cours « Cel shading » ────────────────────────────────
+   *
+   * Recopiés de `pogl/` (le dépôt public de ToonGL), à la lettre : `source`
+   * dit d'où, ligne comprise. Une élision s'écrit en commentaire « … ».
+   */
+  toonShade: {
+    lang: 'glsl',
+    source: 'pogl/shaders/fragment.shd:20',
+    code: `vec3 N = normalize(frag_normal);
+vec3 L = normalize(mat3(view_matrix) * sun_dir);
+
+float NdotL = max(dot(N, L), 0.0);
+
+vec3 ramp   = texture(lighting_sampler, vec2(NdotL, 0.5)).rgb;
+vec3 albedo = texture(texture_sampler, uv_).rgb;
+
+vec3 color = albedo * ramp * sun_color;
+
+
+vec3 viewDir = normalize(-frag_position);
+
+float rim = 1.0 - max(dot(N, viewDir), 0.0);
+float edge = smoothstep(rim_low, rim_high, rim);
+
+color = mix(color, vec3(0.0), edge);
+
+output_color = vec4(color, 1.0);`,
+  },
+  toonRampBuild: {
+    lang: 'cpp',
+    source: 'pogl/src/io/helpers.cc:264',
+    code: `static rgb24_image* build_lightness_ramp(int levels, float min_shade)
+{
+    rgb24_image* ramp = new rgb24_image(256, 1);
+    if (levels < 2)
+    {
+        levels = 2;
+    }
+
+    float inv_levels_minus_1 = 1.0f / (float)(levels - 1);
+
+    for (int x = 0; x < 256; x++)
+    {
+        float t = x / 255.0f;
+
+        float quantized_t = std::floor(t * levels) * inv_levels_minus_1;
+        if (quantized_t > 1.0f)
+        {
+            quantized_t = 1.0f;
+        }
+
+        float factor = min_shade + (1.0f - min_shade) * quantized_t;
+        uint8_t l = (uint8_t)std::min(255.0f, factor * 255.0f);
+
+        std::size_t idx = x * 3;
+        ramp->pixels[idx + 0] = l;
+        ramp->pixels[idx + 1] = l;
+        ramp->pixels[idx + 2] = l;
+    }
+    return ramp;
+}`,
+  },
+  toonDepthEdges: {
+    lang: 'glsl',
+    source: 'pogl/shaders/post_fragment.shd:36',
+    code: `float linearize(float d)
+{
+    float z = d * 2.0 - 1.0;
+    return (2.0 * NEAR * FAR) / (FAR + NEAR - z * (FAR - NEAR));
+}
+
+// …
+float edge_strength()
+{
+    vec2 texel = outline_thickness / vec2(textureSize(depth_tex, 0));
+    float dc = linearize(texture(depth_tex, uv).r);
+    float e  = 0.0;
+    e += abs(linearize(texture(depth_tex, uv + vec2( texel.x, 0.0)).r) - dc);
+    e += abs(linearize(texture(depth_tex, uv + vec2(-texel.x, 0.0)).r) - dc);
+    e += abs(linearize(texture(depth_tex, uv + vec2(0.0,  texel.y)).r) - dc);
+    e += abs(linearize(texture(depth_tex, uv + vec2(0.0, -texel.y)).r) - dc);
+    return e / dc;
+}`,
+  },
+  toonNormalEdges: {
+    lang: 'glsl',
+    source: 'pogl/shaders/post_fragment.shd:50',
+    code: `vec3 reconstruct_normal(vec2 c, vec2 texel)
+{
+    vec3 P  = view_pos(c);
+    vec3 Pr = view_pos(c + vec2(texel.x, 0.0));
+    vec3 Pl = view_pos(c - vec2(texel.x, 0.0));
+    vec3 Pu = view_pos(c + vec2(0.0, texel.y));
+    vec3 Pd = view_pos(c - vec2(0.0, texel.y));
+    vec3 ddx = abs(Pr.z - P.z) < abs(P.z - Pl.z) ? (Pr - P) : (P - Pl);
+    vec3 ddy = abs(Pu.z - P.z) < abs(P.z - Pd.z) ? (Pu - P) : (P - Pd);
+    return normalize(cross(ddx, ddy));
+}
+
+// …
+float normal_edge_strength()
+{
+    vec2 texel = outline_thickness / vec2(textureSize(depth_tex, 0));
+    vec3 nc = reconstruct_normal(uv, texel);
+    float e = 0.0;
+    e += 1.0 - dot(nc, reconstruct_normal(uv + vec2( texel.x, 0.0), texel));
+    e += 1.0 - dot(nc, reconstruct_normal(uv + vec2(-texel.x, 0.0), texel));
+    e += 1.0 - dot(nc, reconstruct_normal(uv + vec2(0.0,  texel.y), texel));
+    e += 1.0 - dot(nc, reconstruct_normal(uv + vec2(0.0, -texel.y), texel));
+    return e;
+}`,
+  },
+  toonOutlineMix: {
+    lang: 'glsl',
+    source: 'pogl/shaders/post_fragment.shd:91',
+    code: `if (outline_enabled) {
+    float depth_o  = smoothstep(edge_low, edge_high, edge_strength());
+    float normal_o = smoothstep(normal_low, normal_high,
+                                normal_edge_strength());
+    float outline  = max(depth_o, normal_o);
+    scene = mix(scene, pow(outline_color, vec3(gamma)), outline);
+}`,
+  },
+  godRaysPass: {
+    lang: 'glsl',
+    source: 'pogl/shaders/post_fragment.shd:99',
+    code: `vec3 rays  = vec3(0.0);
+
+vec4 sclip = proj * view * vec4(sun_dir, 0.0);
+if (rays_enabled && sclip.w > 0.0) {
+    vec2 sun_uv = (sclip.xy / sclip.w) * 0.5 + 0.5;
+    vec2 delta  = (uv - sun_uv) * (rays_density / float(rays_samples));
+    vec2 coord  = uv;
+    float illum = 1.0;
+    for (int i = 0; i < rays_samples; ++i) {
+        coord -= delta;
+        vec3 s = texture(scene_tex, coord).rgb;
+        float bright = max(0.0, max(max(s.r, s.g), s.b) - 1.0);
+        rays  += s * bright * illum * rays_weight;
+        illum *= rays_decay;
+    }
+    rays *= rays_exposure;
+}
+
+vec3 c = scene + rays * sun_color;`,
+  },
 } as const;
 
 export type SnippetKey = keyof typeof snippets;
@@ -2109,8 +2256,8 @@ const toongl: ProjectDef = {
           caption: 'Tones flattened by the 1D ramp, before the outline pass.',
         },
         bark: {
-          alt: 'Tileable pine bark texture, input of the histogram quantization.',
-          caption: 'The input bark texture: its histogram picks the flat tones of the ramp.',
+          alt: 'Tileable pine bark texture, the albedo of the trunks.',
+          caption: 'The bark texture: the albedo that the ramp multiplies, band by band.',
         },
       },
       sections: [
@@ -2122,7 +2269,7 @@ const toongl: ProjectDef = {
             {
               type: 'text',
               content:
-                'Toon shading replaces the smooth Lambert falloff with a handful of flat tones. The diffuse term N·L is not used as a colour but as a coordinate: it indexes a 256×1 ramp texture, quantized into a few levels built from the histogram of the object’s texture. A rim term darkens grazing edges, for the cost of one more dot product.',
+                'Toon shading replaces the smooth Lambert falloff with a handful of flat tones. The diffuse term N·L is not used as a colour but as a coordinate: it indexes a 256×1 ramp texture, quantized into 4 levels and read without filtering, so the band edges stay sharp. A floor keeps the darkest band above black. A rim term darkens grazing edges, for the cost of one more dot product.',
             },
             { type: 'code', snippet: 'toonRamp', caption: 'shaders/fragment.shd' },
             { type: 'media', shot: 'pines' },
@@ -2205,8 +2352,8 @@ const toongl: ProjectDef = {
           caption: 'Les tons aplatis par la rampe 1D, avant la passe de contours.',
         },
         bark: {
-          alt: 'Texture d’écorce de pin répétable, entrée de la quantification par histogramme.',
-          caption: 'La texture d’écorce d’entrée : son histogramme choisit les aplats de la rampe.',
+          alt: 'Texture d’écorce de pin répétable, l’albédo des troncs.',
+          caption: 'La texture d’écorce : l’albédo que la rampe multiplie, bande par bande.',
         },
       },
       sections: [
@@ -2218,7 +2365,7 @@ const toongl: ProjectDef = {
             {
               type: 'text',
               content:
-                "Le toon shading remplace le dégradé de Lambert par quelques aplats. Le terme diffus N·L ne sert pas de couleur mais de coordonnée : il indexe une texture-rampe de 256×1, quantifiée en quelques niveaux construits à partir de l’histogramme de la texture de l’objet. Un terme de rim assombrit les bords rasants, pour un produit scalaire de plus.",
+                "Le toon shading remplace le dégradé de Lambert par quelques aplats. Le terme diffus N·L ne sert pas de couleur mais de coordonnée : il indexe une texture-rampe de 256×1, quantifiée en 4 niveaux et lue sans filtrage, pour que les bords des bandes restent francs. Un plancher empêche la bande la plus sombre de tomber au noir. Un terme de rim assombrit les bords rasants, pour un produit scalaire de plus.",
             },
             { type: 'code', snippet: 'toonRamp', caption: 'shaders/fragment.shd' },
             { type: 'media', shot: 'pines' },
@@ -2301,8 +2448,8 @@ const toongl: ProjectDef = {
           caption: 'Die von der 1D-Rampe abgeflachten Töne, vor dem Konturen-Pass.',
         },
         bark: {
-          alt: 'Kachelbare Kiefernrinden-Textur, Eingabe der Histogramm-Quantisierung.',
-          caption: 'Die Rinden-Textur am Eingang: ihr Histogramm wählt die Farbflächen der Rampe.',
+          alt: 'Kachelbare Kiefernrinden-Textur, die Albedo der Stämme.',
+          caption: 'Die Rinden-Textur: die Albedo, die die Rampe Band für Band multipliziert.',
         },
       },
       sections: [
@@ -2314,7 +2461,7 @@ const toongl: ProjectDef = {
             {
               type: 'text',
               content:
-                'Toon Shading ersetzt den weichen Lambert-Verlauf durch wenige Farbflächen. Der Diffusterm N·L dient nicht als Farbe, sondern als Koordinate: Er indiziert eine 256×1-Rampentextur, quantisiert in einige Stufen, die aus dem Histogramm der Objekttextur gebaut werden. Ein Rim-Term dunkelt streifende Kanten ab — für ein Skalarprodukt mehr.',
+                'Toon Shading ersetzt den weichen Lambert-Verlauf durch wenige Farbflächen. Der Diffusterm N·L dient nicht als Farbe, sondern als Koordinate: Er indiziert eine 256×1-Rampentextur, quantisiert in 4 Stufen und ohne Filterung gelesen, damit die Bandkanten scharf bleiben. Eine Untergrenze hält das dunkelste Band über Schwarz. Ein Rim-Term dunkelt streifende Kanten ab — für ein Skalarprodukt mehr.',
             },
             { type: 'code', snippet: 'toonRamp', caption: 'shaders/fragment.shd' },
             { type: 'media', shot: 'pines' },

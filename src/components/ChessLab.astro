@@ -49,6 +49,7 @@ const moves = GAME.map((move) => move.san);
       <p
         data-chess-status
         data-unsupported={t('chess.unsupported')}
+        data-failed={t('chess.failed')}
         class="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-pretty text-ink-soft"
       >
         {t('chess.loading')}
@@ -128,6 +129,7 @@ const moves = GAME.map((move) => move.san);
     const strings = {
       start: label.textContent ?? '',
       unsupported: status.dataset.unsupported ?? '',
+      failed: status.dataset.failed ?? '',
     };
 
     let handle: ChessHandle | null = null;
@@ -161,19 +163,20 @@ const moves = GAME.map((move) => move.san);
     // Le module de rendu ne descend qu'à l'approche de la figure.
     const start = async () => {
       const { mountChessBoard } = await import('../lib/chess');
-      handle = await mountChessBoard(canvas);
+      const mounted = await mountChessBoard(canvas);
 
-      if (!handle) {
+      if (typeof mounted === 'string') {
         /*
          * Sans WebGPU, la figure se replie sur sa phrase : le badge « en
          * direct » ne doit pas rester allumé sur un rendu qui n'a pas lieu, et
          * une barre de commandes qui ne commande rien n'a pas à occuper
          * l'écran. La mise en forme du repli vit dans `global.css`.
          */
-        status.textContent = strings.unsupported;
+        status.textContent = strings[mounted];
         root.dataset.chessState = 'unsupported';
         return;
       }
+      handle = mounted;
       status.remove();
       refresh();
     };

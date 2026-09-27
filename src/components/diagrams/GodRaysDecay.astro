@@ -1,0 +1,34 @@
+---
+/**
+ * Cours cel shading, aparté — le poids de chaque échantillon d'un god ray :
+ * weight · decayⁱ, pour la valeur du projet (0,96) et deux voisines. La somme
+ * des poids dit combien d'échantillons « pleins » vaut une marche de 100.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { RAYS, rayWeight } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const series = [
+  { key: 'd90', decay: 0.9 },
+  { key: 'd96', decay: RAYS.decay },
+  { key: 'd99', decay: 0.99 },
+];
+const points = (decay: number) =>
+  Array.from({ length: RAYS.samples }, (_, i) => [i, rayWeight(i, decay)] as [number, number]);
+---
+
+<Legend entries={series.map(({ key, decay }) => ({ key, label: `decay = ${decay}` }))} />
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="rays-decay"
+    alt={t('diagram.godRaysDecay.alt')}
+    x={{ domain: [0, RAYS.samples], label: t('diagram.rays.sample') }}
+    y={{ domain: [0, RAYS.weight], label: t('diagram.rays.weight') }}
+    series={series.map(({ key, decay }) => ({ key, points: points(decay), marker: 'none' as const }))}
+  />
+</div>
