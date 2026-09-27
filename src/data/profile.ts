@@ -90,7 +90,7 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'GPU optimisation',
     role: 'Rendering, image processing and GPU optimisation',
     description:
-      'Engineer specialised in rendering, image processing and GPU optimisation. I write C++, CUDA and Python to make computers draw images (and draw them faster).',
+      'Engineer specialised in rendering, image processing and GPU optimisation. I write C++, CUDA and Python for image processing and rendering (and to make it all run faster).',
     approach:
       'Almost everything here was rebuilt rather than assembled: a ray marcher with no graphics API, a U-Net with no reference implementation, a neural texture codec decoded on the GPU. It is the long way round, but the only one that shows where the time actually goes. So every page states its numbers (the unflattering ones included).',
     location: 'France, Germany, Austria, Switzerland',
@@ -124,7 +124,7 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'optimisation GPU',
     role: 'Rendu, traitement d’images et optimisation GPU',
     description:
-      'Ingénieur spécialisé en rendu, traitement d’images et optimisation GPU. J’écris du C++, du CUDA et du Python pour faire calculer des images (et les faire calculer plus vite).',
+      'Ingénieur spécialisé en rendu, traitement d’images et optimisation GPU. J’écris du C++, du CUDA et du Python pour le traitement et le rendu d’images (et pour que ça tourne plus vite).',
     approach:
       'Presque tout ce qui est ici a été refait plutôt qu’assemblé : un ray marcher sans API graphique, un U-Net sans implémentation de référence, un codec neural de textures décodé sur le GPU. C’est le chemin le plus long, mais c’est le seul qui montre où passe vraiment le temps. Chaque page donne donc ses chiffres (y compris les moins flatteurs).',
     location: 'France, Allemagne, Autriche, Suisse',
@@ -158,7 +158,7 @@ export const profile: Record<Locale, LocalizedProfile> = {
     headlineAccent: 'GPU-Optimierung',
     role: 'Rendering, Bildverarbeitung und GPU-Optimierung',
     description:
-      'Ingenieur mit Schwerpunkt Rendering, Bildverarbeitung und GPU-Optimierung. Ich schreibe C++, CUDA und Python, um Bilder berechnen zu lassen (und das schneller).',
+      'Ingenieur mit Schwerpunkt Rendering, Bildverarbeitung und GPU-Optimierung. Ich schreibe C++, CUDA und Python für Bildverarbeitung und Rendering (und damit alles schneller läuft).',
     approach:
       'Fast alles hier ist nachgebaut statt zusammengesetzt: ein Ray Marcher ohne Grafik-API, ein U-Net ohne Referenzimplementierung, ein neuronaler Texturcodec, auf der GPU dekodiert. Das ist der längere Weg, aber der einzige, der zeigt, wohin die Zeit wirklich geht. Deshalb nennt jede Seite ihre Zahlen (auch die weniger schmeichelhaften).',
     location: 'Frankreich, Deutschland, Österreich, Schweiz',
