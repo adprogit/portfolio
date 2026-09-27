@@ -1336,35 +1336,79 @@
   }
 
   /*
-   * ── Les sprites des lignes de projet ────────────────────────────────
-   * Une case carrée en pixels (`PixelSprite.astro`). Chaque pixel porte un
-   * rôle, et c'est ici qu'il prend sa couleur : l'accent du projet, l'encre,
-   * le trait, le filet — donc le thème courant, sans image à doubler.
+   * ── Les cartes de projet et leurs sprites ───────────────────────────
+   * Une case d'écran carrée, plus sombre que la page (`paper-sunken`), où
+   * tourne le sprite du projet (`PixelSprite.astro`). Chaque pixel porte un
+   * rôle, et c'est ici qu'il prend sa couleur — donc le thème courant, sans
+   * image à doubler.
    *
-   * Échelle entière, sinon les pixels n'ont pas tous la même taille : 2 px
-   * d'écran par pixel sur téléphone, 3 au-delà. `crispEdges` interdit le
-   * lissage des bords.
+   * Au repos, l'accent du sprite est à l'encre : la carte est neutre, comme
+   * l'était la ligne. Au survol ou au focus, il prend la couleur du projet,
+   * avec le cadre et le titre.
+   *
+   * Taille : la plus grande qui soit un multiple entier de la grille
+   * (`round(down, …)`) — sinon les pixels n'auraient pas tous la même taille.
+   * Un navigateur sans `round()` garde `100%`, à peine moins net.
+   * `crispEdges` interdit le lissage des bords.
    *
    * L'animation montre une image à la fois : chaque groupe n'est visible que
-   * pendant son seizième du cycle, décalé de son rang. Sans animation — mouvement
-   * réduit —, seule la dernière image reste : elle résume la scène.
+   * pendant son seizième du cycle, décalé de son rang. En mouvement réduit,
+   * seule la dernière image reste : elle résume la scène.
    */
+  .card-art {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    padding: 0.5rem;
+    background: var(--color-paper-sunken);
+    border: 1px solid var(--color-rule);
+    transition: border-color 0.18s ease-out;
+  }
+
+  .card:hover .card-art,
+  .card:focus-visible .card-art {
+    border-color: var(--row-accent, var(--color-brand));
+  }
+
+  .card:hover .row-title,
+  .card:focus-visible .row-title,
+  .card:hover .row-year,
+  .card:focus-visible .row-year {
+    color: var(--row-accent, var(--color-brand));
+  }
+
+  .card:hover .row-title,
+  .card:focus-visible .row-title {
+    text-shadow: var(--glow);
+  }
+
+  .card:hover .row-tech,
+  .card:focus-visible .row-tech {
+    opacity: 0;
+  }
+
+  .card:hover .row-metrics,
+  .card:focus-visible .row-metrics {
+    opacity: 1;
+  }
+
   .px-sprite {
     display: block;
-    flex: none;
-    width: calc(var(--px-n) * 2px);
-    height: calc(var(--px-n) * 2px);
+    width: 100%;
+    width: round(down, 100%, calc(var(--px-n) * 1px));
+    height: auto;
     shape-rendering: crispEdges;
   }
 
-  @media (min-width: 40rem) {
-    .px-sprite {
-      width: calc(var(--px-n) * 3px);
-      height: calc(var(--px-n) * 3px);
-    }
+  .px-a {
+    fill: var(--color-ink);
+    transition: fill 0.18s ease-out;
   }
-
-  .px-a { fill: var(--row-accent, var(--color-brand)); }
+  .card:hover .px-a,
+  .card:focus-visible .px-a {
+    fill: var(--row-accent, var(--color-brand));
+  }
   .px-i { fill: var(--color-ink-soft); }
   .px-l { fill: var(--color-line); }
   .px-r { fill: var(--color-rule); }
@@ -1372,18 +1416,52 @@
   .px-frame { visibility: hidden; }
   .px-frame:last-of-type { visibility: visible; }
 
+  /*
+   * Une image qui dure k seizièmes du cycle (images identiques regroupées)
+   * prend l'animation `px-sk`. Une image qui dure tout le cycle ne bouge pas :
+   * `px-s16` n'a pas d'animation.
+   */
   @media (prefers-reduced-motion: no-preference) {
     .px-frame {
-      animation: px-frame 2.88s step-end infinite;
+      animation-duration: 2.88s;
+      animation-timing-function: step-end;
+      animation-iteration-count: infinite;
       animation-delay: calc((var(--f) - 16) * 0.18s);
     }
+    .px-s1 { animation-name: px-s1; }
+    .px-s2 { animation-name: px-s2; }
+    .px-s3 { animation-name: px-s3; }
+    .px-s4 { animation-name: px-s4; }
+    .px-s5 { animation-name: px-s5; }
+    .px-s6 { animation-name: px-s6; }
+    .px-s7 { animation-name: px-s7; }
+    .px-s8 { animation-name: px-s8; }
+    .px-s9 { animation-name: px-s9; }
+    .px-s10 { animation-name: px-s10; }
+    .px-s11 { animation-name: px-s11; }
+    .px-s12 { animation-name: px-s12; }
+    .px-s13 { animation-name: px-s13; }
+    .px-s14 { animation-name: px-s14; }
+    .px-s15 { animation-name: px-s15; }
+    .px-s16 { animation-name: px-s16; }
+    .px-s16 { animation: none; visibility: visible; }
   }
 
-  @keyframes px-frame {
-    0% { visibility: visible; }
-    6.25%,
-    100% { visibility: hidden; }
-  }
+  @keyframes px-s1 { 0% { visibility: visible; } 6.25%, 100% { visibility: hidden; } }
+  @keyframes px-s2 { 0% { visibility: visible; } 12.5%, 100% { visibility: hidden; } }
+  @keyframes px-s3 { 0% { visibility: visible; } 18.75%, 100% { visibility: hidden; } }
+  @keyframes px-s4 { 0% { visibility: visible; } 25%, 100% { visibility: hidden; } }
+  @keyframes px-s5 { 0% { visibility: visible; } 31.25%, 100% { visibility: hidden; } }
+  @keyframes px-s6 { 0% { visibility: visible; } 37.5%, 100% { visibility: hidden; } }
+  @keyframes px-s7 { 0% { visibility: visible; } 43.75%, 100% { visibility: hidden; } }
+  @keyframes px-s8 { 0% { visibility: visible; } 50%, 100% { visibility: hidden; } }
+  @keyframes px-s9 { 0% { visibility: visible; } 56.25%, 100% { visibility: hidden; } }
+  @keyframes px-s10 { 0% { visibility: visible; } 62.5%, 100% { visibility: hidden; } }
+  @keyframes px-s11 { 0% { visibility: visible; } 68.75%, 100% { visibility: hidden; } }
+  @keyframes px-s12 { 0% { visibility: visible; } 75%, 100% { visibility: hidden; } }
+  @keyframes px-s13 { 0% { visibility: visible; } 81.25%, 100% { visibility: hidden; } }
+  @keyframes px-s14 { 0% { visibility: visible; } 87.5%, 100% { visibility: hidden; } }
+  @keyframes px-s15 { 0% { visibility: visible; } 93.75%, 100% { visibility: hidden; } }
 
   /*
    * ── Liens de texte ──────────────────────────────────────────────────

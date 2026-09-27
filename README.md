@@ -60,6 +60,15 @@ Blocs disponibles dans une section : `text`, `list`, `code`, `media`, `video`,
 `chart`, `live` (l'échiquier). Aucune année, nulle part ; un projet en cours
 porte `status: 'wip'`.
 
+Sur l'accueil, chaque projet est une carte avec un **sprite en pixels**
+(32 × 32, 16 images) qui rejoue ce qu'il fait. Les scènes sont calculées dans
+`src/lib/sprites.ts` sur le moteur de `src/lib/pixel.ts`. Les pixels portent
+un rôle, pas une couleur, donc le sprite suit le thème et ne prend l'accent du
+projet qu'au survol. Le rendu est du SVG statique (`svg`, `g`, `path`), sans
+script, animé en CSS ; en mouvement réduit, la dernière image reste. Un projet
+sans entrée dans `sprites` garde une case vide : ajouter un projet, c'est aussi
+lui écrire sa scène.
+
 Un tag s'ajoute dans `tagGroups`, avec sa traduction `tag.<nom>` dans `ui.ts`
 s'il s'agit d'un domaine. Le filtre de l'accueil ne propose que les tags portés
 par au moins un projet.

@@ -7,13 +7,13 @@
  * externe ni `data:` URI, aucun `foreignObject` — seulement des `<path>` faits
  * de rectangles aux coordonnées entières, calculés à la compilation par
  * `src/lib/sprites.ts`.
- * Le seul style en ligne est le rang d'image (`--f`) et la taille de la grille
+ * Le seul style en ligne est le rang de la première image (`--f`) et la taille de la grille
  * (`--px-n`), deux nombres. Rien ne vient d'une donnée extérieure.
  *
  * C'est un décor : le lien porte déjà le titre du projet, donc le SVG est
  * `aria-hidden` et ne prend pas le focus.
  */
-import { FRAMES } from '../lib/pixel';
+import { FRAMES, type Layer } from '../lib/pixel';
 import { sprites } from '../lib/sprites';
 
 interface Props {
@@ -24,6 +24,16 @@ const make = sprites[Astro.props.slug];
 const sprite = make?.();
 if (sprite && sprite.frames.length !== FRAMES) {
   throw new Error(`PixelSprite : ${Astro.props.slug} doit avoir ${FRAMES} images.`);
+}
+
+// Les images identiques qui se suivent n'en font qu'une, visible plus
+// longtemps : une scène qui se fige sur sa fin ne se répète pas dans le HTML.
+const runs: { start: number; span: number; paths: ReturnType<Layer['paths']> }[] = [];
+for (const [f, frame] of (sprite?.frames ?? []).entries()) {
+  const paths = frame.paths();
+  const last = runs.at(-1);
+  if (last && JSON.stringify(last.paths) === JSON.stringify(paths)) last.span++;
+  else runs.push({ start: f, span: 1, paths });
 }
 ---
 
@@ -38,9 +48,9 @@ if (sprite && sprite.frames.length !== FRAMES) {
     <g>
       {sprite.base.paths().map(({ role, d }) => <path class={`px-${role}`} d={d} />)}
     </g>
-    {sprite.frames.map((frame, f) => (
-      <g class="px-frame" style={`--f: ${f}`}>
-        {frame.paths().map(({ role, d }) => <path class={`px-${role}`} d={d} />)}
+    {runs.map(({ start, span, paths }) => (
+      <g class={`px-frame px-s${span}`} style={`--f: ${start}`}>
+        {paths.map(({ role, d }) => <path class={`px-${role}`} d={d} />)}
       </g>
     ))}
   </svg>
