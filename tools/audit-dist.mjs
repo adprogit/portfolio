@@ -47,8 +47,8 @@ const report = (file, message) => problems.push(`${relative(root, file) || '.'} 
  * `tailwindcss.com` et `w3.org` sont du texte inerte dans un commentaire, pas
  * une requête. Les liens de dépôt et le profil professionnel, eux, sont voulus :
  * chaque page projet porte son dépôt ou dit qu'il est privé, et l'accueil porte
- * le profil. La règle reste stricte — seuls `github.com/<compte>/<dépôt>` et
- * `www.linkedin.com/in/<profil>` passent, rien d'autre, et surtout aucune
+ * les profils. La règle reste stricte — seuls `github.com/<compte>/<dépôt>`,
+ * `github.com/<compte>` et `www.linkedin.com/in/<profil>` passent, rien d'autre, et surtout aucune
  * ressource *chargée* depuis l'extérieur (voir le contrôle 2, qui interdit
  * toujours `src` et `srcset` distants).
  */
@@ -61,6 +61,7 @@ const ALLOWED_TEXT = [/tailwindcss\.com/, /w3\.org/, /^github\.com$/i, /^linkedi
  */
 const ALLOWED_LINKS = [
   /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/,
+  /^https:\/\/github\.com\/[\w-]+\/?$/,
   /^https:\/\/www\.linkedin\.com\/in\/[\w-]+\/?$/,
 ];
 

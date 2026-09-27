@@ -22,7 +22,7 @@ import NoteRow from './NoteRow.astro';
 import { getNotes } from '../data/notes';
 import SectionHead from './SectionHead.astro';
 import Icon from './Icon.astro';
-import { links, profile } from '../data/profile';
+import { firstName, links, profile } from '../data/profile';
 import { getProjects, getProjectGroups } from '../data/projects';
 import type { Locale } from '../i18n/config';
 import { useT, type UIKey } from '../i18n/ui';
@@ -41,7 +41,14 @@ const notes = getNotes(lang);
 
 {/* ── Premier écran : la bio, et rien d'autre ──────────────────── */}
 <section class="hero" aria-labelledby="home-title">
-  <div class="shell flex flex-1 flex-col px-5 sm:px-8">
+  <div class="shell relative flex flex-1 flex-col px-5 sm:px-8">
+    {/*
+      Le prénom, d'une autre main : la didone du titre, en contour. Sur grand
+      écran il se dresse dans la marge droite, que la bio laisse vide ; sur
+      téléphone, il passe au-dessus du bandeau, calé à droite.
+    */}
+    <p class="hero-name">{firstName}</p>
+
     <div class="measure" data-reveal-group>
       {/*
         La seule ligne du site qui s'écrit. `--chars` donne au masque son nombre
