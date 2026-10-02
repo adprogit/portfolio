@@ -36,6 +36,7 @@ import * as optim from '../lib/optim';
 import * as unetLib from '../lib/unet';
 // Le cel shading de ToonGL, recalculé à la compilation.
 import * as toonLib from '../lib/toon';
+import * as rasterLib from '../lib/raster';
 
 interface NoteText {
   /** Surtitre en mono, sans le `//`. */
@@ -3081,6 +3082,816 @@ const cel: NoteDef = {
  * les constantes du projet. Chaque affirmation du texte qui en dépend est
  * vérifiée ici.
  */
+/* ── Du triangle au pixel ──────────────────────────────────────────── */
+
+const raster: NoteDef = {
+  slug: 'rasterization',
+  tone: 'green',
+  category: 'rendering',
+  project: 'toongl',
+  facts: () => rasterFacts(),
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      kicker: 'rendering · GPU pipeline',
+      title: 'From triangle',
+      titleAccent: 'to pixel',
+      description:
+        'Revision notes on rasterization and the OpenGL pipeline, from vertex to pixel: coordinate spaces, clipping, edge functions, perspective-correct interpolation, depth, per-fragment tests — and the interview questions that go with them. Figures recomputed with the POGL camera.',
+      sections: [
+        {
+          id: 'pipeline',
+          kicker: '01',
+          title: 'The whole chain in one figure',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Input: vertices (attributes stored in VBOs, described by a VAO) and a primitive type — glDrawArrays(GL_TRIANGLES, …), or glDrawElements with an index buffer.',
+                'Two mandatory programmable stages: the vertex shader, one invocation per vertex; the fragment shader, one per fragment. Tessellation and geometry shaders, optional, sit in between.',
+                'Everything else is fixed function: you do not program it, you set state — glViewport, glCullFace, glDepthFunc, glBlendFunc, glEnable.',
+                'Output: values in the framebuffer (colour, depth, stencil), on screen or in a texture through an FBO.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPipeline',
+              caption:
+                'The ten stages of a draw call. First row: vertices. Second: pixels. Rasterization is the hinge between them.',
+            },
+          ],
+        },
+        {
+          id: 'spaces',
+          kicker: '02',
+          title: 'From vertex to clip space',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Object → world: the model matrix M. World → view: the view matrix V (a lookAt). View → clip: the projection P.',
+                'The vertex shader must write gl_Position in clip coordinates: a homogeneous vec4 (x, y, z, w). The divide by w has not happened yet.',
+                'OpenGL view space: the camera looks down −z. The projection puts −z_view into w: w_clip is the distance in front of the camera.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glVertexShader',
+              caption:
+                'The POGL vertex shader: attributes arrive through layout(location), and gl_Position = P · MV · position.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Normals do not transform like points: the right matrix is the inverse transpose, ((MV)⁻¹)ᵀ — the “normal matrix”.',
+                'mat3(model_view_matrix), as above, is only right (up to length) with rotations, translations and uniform scales. A non-uniform scale tilts the normals.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glFrustum',
+              caption:
+                'The POGL projection, in glFrustum form. Last row: w = −z_view. Third: z_clip = k · z_view + l. POGL calls it with near = {{near}}, far = {{far}} and top = 1: a {{vfov}}° vertical field of view.',
+            },
+            {
+              type: 'list',
+              items: [
+                'After the divide: z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d), d the distance. Near gives −1, far gives +1.',
+                'A hyperbola in d, not a line: all of section 06 follows from it.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'clip',
+          kicker: '03',
+          title: 'Assembly, clipping, divide, viewport',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Assembly: transformed vertices are grouped into primitives — three per triangle with GL_TRIANGLES, one more per triangle with GL_TRIANGLE_STRIP. A post-transform cache avoids re-running the vertex shader on an index already seen.',
+                'Clipping, in clip coordinates: visible means −w ≤ x ≤ w, −w ≤ y ≤ w and −w ≤ z ≤ w. A triangle crossing the volume is cut into a polygon, then re-triangulated.',
+                'Why before the divide: behind the camera, w ≤ 0. Dividing first would flip the signs and send the point to the other side of the screen. The near plane is what cuts those triangles.',
+                'In practice GPUs only truly clip against near and far: for x and y, a “guard band” lets the rasterizer ignore whatever overflows the screen.',
+                'Perspective divide: NDC = (x/w, y/w, z/w), inside the cube [−1, 1]³.',
+                'Viewport: x_w = (x_ndc + 1)/2 · width + x₀, likewise for y; z_w = (z_ndc + 1)/2 with glDepthRange(0, 1). The origin is bottom-left.',
+                'Culling: the sign of the triangle’s area in window coordinates tells whether it faces the camera. glFrontFace(GL_CCW) by default: counter-clockwise = front. glCullFace(GL_BACK) discards the other side before any rasterization.',
+                'In POGL: GL_CULL_FACE enabled at initialisation, with glCullFace(GL_BACK), and disabled for the ground pass.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'raster',
+          kicker: '04',
+          title: 'Rasterizing: which pixels?',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'The question: which pixels does the triangle cover? OpenGL’s answer: those whose centre, (x + ½, y + ½), lies inside. Each one becomes a fragment.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Edge function (Pineda, 1988): E_ab(p) = (b − a) × (p − a) = (b_x − a_x)(p_y − a_y) − (b_y − a_y)(p_x − a_x).',
+                'E_ab(p) is twice the signed area of triangle (a, b, p): positive on one side of the edge, negative on the other, zero on it.',
+                'p is inside when all three edge functions share the sign of the triangle’s area.',
+                'E is affine in p: from one pixel to the next it grows by a constant. The test costs three additions per pixel, and thousands of pixels are tested in parallel — which is why it won over scanline traversal.',
+                'Traversal: the bounding box, split into tiles; a tile fully outside one edge is rejected at once (hierarchical rasterization).',
+                'Barycentrics: λ_a = E_bc(p) / E_bc(a), likewise for b and c — the edge functions divided by the area. They drive interpolation.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterCoverage',
+              caption:
+                'Two triangles, a shared edge running through {{shared}} pixel centres. With the top-left rule each is produced by one triangle only: {{n1}} pixels for the first, {{n2}} for the second, none twice.',
+            },
+            {
+              type: 'list',
+              items: [
+                'The edge case: a centre exactly on an edge. Counted twice, the pixel would be blended twice (transparency, stencil counters); dropped, it would leave a hole.',
+                'OpenGL requires such a centre to be produced by exactly one of the triangles sharing the edge. Direct3D names the rule: “top-left” — the centre counts if it lies on a top edge (horizontal, above) or a left edge.',
+                'Without a rule, testing ≥ 0 on both sides, the {{dupNoRule}} centres on the edge would be produced twice.',
+                'Vertices are snapped to a sub-pixel grid (GL_SUBPIXEL_BITS, at least 4 bits) and the test runs in integers: exact, with no rounding to make an edge flicker.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'interpolation',
+          kicker: '05',
+          title: 'Interpolating: perspective',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'A fragment receives the vertex shader outputs (uv_, frag_normal…) interpolated between the three vertices.',
+                'Linear interpolation in screen space, a = λ_a · a_a + λ_b · a_b + λ_c · a_c, is wrong: projection is not affine, and screen-space barycentrics are not the 3D ones.',
+                'What is affine in screen space is a/w and 1/w. Hence the correction: a = (Σ λᵢ · aᵢ / wᵢ) / (Σ λᵢ / wᵢ).',
+                'It is the default for GLSL outputs (the smooth qualifier). noperspective gives affine interpolation; flat takes one vertex’s value, with no interpolation.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPerspective',
+              caption:
+                'A checkerboard floor, two triangles. Left, (u, v) interpolated in screen space: the texture breaks along the diagonal, off by up to {{uvError}} % of its width. Right, the corrected formula.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Depth, on the other hand, is interpolated without correction: z_ndc is already affine in screen space. Hence a depth buffer that is non-linear in distance.',
+                'Fragments are launched in 2 × 2 blocks (“quads”). dFdx and dFdy are differences between quad neighbours, and the mipmap level depends on them. At a triangle’s border, “helper” invocations run for nothing, just to provide those neighbours.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'depth',
+          kicker: '06',
+          title: 'Depth',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Stored: z_w = (z_ndc + 1)/2, with z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d).',
+                'A hyperbola in d: precision is concentrated near the near plane.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterDepth',
+              caption:
+                'With the POGL camera (near = {{near}}, far = {{far}}), half of the [0, 1] range is spent before distance {{halfDist}} — within the first {{halfPct}} % of the scene’s depth.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Step of a 24-bit depth buffer: Δd ≈ 2⁻²⁴ · (f − n) · d² / (f · n). In POGL, {{step10}} unit at distance 10, {{step250}} at distance 250: {{ratio}} times coarser, the square of the distance ratio.',
+                'Z-fighting: two surfaces closer than Δd land on the same value, and the depth test picks between them at random from pixel to pixel.',
+                'The lever is near, not far: for f ≫ n, Δd ≈ 2⁻²⁴ · d² / n. Moving near from 1 to 0.1 makes everything 10 times worse; pushing far out barely changes anything.',
+                'Reverse-Z: glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE), a float depth buffer (GL_DEPTH_COMPONENT32F), near → 1, far → 0, glDepthFunc(GL_GREATER). The density of floats near 0 cancels the hyperbola: almost uniform precision.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'fragment',
+          kicker: '07',
+          title: 'From fragment to pixel',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Fragment: a candidate pixel, with its position, its depth and its interpolated inputs. The fragment shader turns it into a colour (out vec4), or drops it (discard).',
+                'Then, in order: pixel ownership, scissor test, stencil test, depth test, then blending, sRGB conversion and write masks.',
+                'Early-Z: the GPU runs the depth test before the fragment shader and does not shade hidden fragments. Impossible if the shader writes gl_FragDepth; discard prevents writing depth early. layout(early_fragment_tests) in; forces the test upstream.',
+                'Consequence: drawing opaque objects front to back, or a depth pre-pass, reduces overdraw.',
+                'Blending: colour = src · src_factor + dst · dst_factor. Classic transparency: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA). Transparent objects come after opaque ones, back to front, with depth writes off (glDepthMask(GL_FALSE)).',
+                'MSAA: coverage and depth tested per sample (4 per pixel at 4×), but one fragment shader invocation per pixel and per triangle; samples are averaged at the end (“resolve”). Edges are smoothed at almost no shading cost — not the aliasing inside a texture or a shader.',
+                'In POGL: GL_DEPTH_TEST enabled, the scene rendered into an RGB16F FBO, then a post-process pass for outlines and god rays (see the cel shading note).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '08',
+          title: 'Interview questions',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Why triangles? Always planar and convex, fixed by three points: inside is three edge-function tests, and barycentric interpolation is unique.',
+                'What does gl_Position hold? Homogeneous clip coordinates; the divide by w happens afterwards, in hardware.',
+                'Why clip before dividing? Behind the camera w ≤ 0: the divide would send the point to the other side.',
+                'Why near > 0? At d = 0 the divide is impossible, and depth precision is proportional to near.',
+                'Z-fighting, and its remedies? Two depths within one step Δd. Pull near back, reduce far / near, switch to reverse-Z, or glPolygonOffset for a decal lying on a surface.',
+                'Why correct the interpolation? Attributes are affine in space, not on screen; a/w and 1/w are.',
+                'A pixel on the edge of two triangles? The fill rule (top-left) gives it to exactly one.',
+                'When is early-Z lost? When writing gl_FragDepth; discard and alpha-to-coverage also prevent the early depth update.',
+                'MSAA or SSAA? MSAA: coverage per sample, shading per pixel. SSAA: everything per sample, cost multiplied by the sample count.',
+                'Forward or deferred? Forward: lighting in each object’s fragment shader. Deferred: one pass writes normals, albedo and depth (the G-buffer), lighting comes afterwards, per pixel — many lights, but transparency and MSAA get harder.',
+                'Rasterization or ray tracing? Rasterization: for each triangle, which pixels — object first. Ray tracing: for each pixel, which object — image first. The portfolio’s ray marcher sits on that side.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '09',
+          title: 'Further reading',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'The OpenGL 4.6 Core Profile Specification — the chapters on vertex post-processing, rasterization and per-fragment operations.',
+                'Fabian Giesen, A trip through the Graphics Pipeline (2011) — the same path, from the hardware side.',
+                'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — edge functions.',
+                'Nathan Reed, Depth Precision Visualized (2015) — reverse-Z, with curves.',
+                'Scratchapixel, Rasterization: a Practical Implementation — a software rasterizer step by step.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      kicker: 'rendu · pipeline GPU',
+      title: 'Du triangle',
+      titleAccent: 'au pixel',
+      description:
+        'Fiche de révision sur la rasterisation et le pipeline OpenGL, du sommet au pixel : espaces de coordonnées, clipping, fonctions d’arête, interpolation corrigée en perspective, profondeur, tests par fragment — et les questions d’entretien qui vont avec. Chiffres recalculés avec la caméra de POGL.',
+      sections: [
+        {
+          id: 'pipeline',
+          kicker: '01',
+          title: 'La chaîne en une figure',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Entrée : des sommets (attributs rangés dans des VBO, décrits par un VAO) et un type de primitive — glDrawArrays(GL_TRIANGLES, …), ou glDrawElements avec un tampon d’indices.',
+                'Deux étapes programmables obligatoires : le vertex shader, un appel par sommet ; le fragment shader, un appel par fragment. Tessellation et geometry shader, optionnels, se glissent entre les deux.',
+                'Tout le reste est câblé : on ne le programme pas, on le règle par des états — glViewport, glCullFace, glDepthFunc, glBlendFunc, glEnable.',
+                'Sortie : des valeurs dans le framebuffer (couleur, profondeur, stencil), à l’écran ou dans une texture par un FBO.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPipeline',
+              caption:
+                'Les dix étapes d’un draw call. Première rangée : des sommets. Seconde : des pixels. La rasterisation est la charnière entre les deux.',
+            },
+          ],
+        },
+        {
+          id: 'spaces',
+          kicker: '02',
+          title: 'Du sommet au clip space',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Objet → monde : la matrice model M. Monde → vue : la matrice view V (un lookAt). Vue → clip : la projection P.',
+                'Le vertex shader doit écrire gl_Position en coordonnées de clip : un vec4 homogène (x, y, z, w). La division par w n’a pas encore eu lieu.',
+                'Repère vue d’OpenGL : la caméra regarde vers −z. La projection range −z_vue dans w : w_clip est la distance devant la caméra.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glVertexShader',
+              caption:
+                'Le vertex shader de POGL : les attributs arrivent par layout(location), et gl_Position = P · MV · position.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Les normales ne se transforment pas comme les points : la bonne matrice est la transposée de l’inverse, ((MV)⁻¹)ᵀ — la « normal matrix ».',
+                'mat3(model_view_matrix), comme ci-dessus, n’est juste (à la norme près) qu’avec des rotations, des translations et des échelles uniformes. Une échelle non uniforme penche les normales.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glFrustum',
+              caption:
+                'La projection de POGL, au format de glFrustum. Dernière ligne : w = −z_vue. Troisième : z_clip = k · z_vue + l. POGL l’appelle avec near = {{near}}, far = {{far}} et top = 1 : un champ vertical de {{vfov}}°.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Après division : z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d), d la distance. Near donne −1, far donne +1.',
+                'C’est une hyperbole en d, pas une droite : toute la section 06 en découle.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'clip',
+          kicker: '03',
+          title: 'Assemblage, clipping, division, viewport',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Assemblage : les sommets transformés sont regroupés en primitives — trois par triangle avec GL_TRIANGLES, un de plus par triangle avec GL_TRIANGLE_STRIP. Un cache post-transformation évite de relancer le vertex shader sur un indice déjà vu.',
+                'Clipping, en coordonnées de clip : est visible ce qui vérifie −w ≤ x ≤ w, −w ≤ y ≤ w et −w ≤ z ≤ w. Un triangle qui coupe le volume est découpé en polygone, puis re-triangulé.',
+                'Pourquoi avant la division : derrière la caméra, w ≤ 0. Diviser d’abord inverserait les signes et renverrait le point de l’autre côté de l’écran. C’est le plan near qui tranche ces triangles.',
+                'En pratique, les GPU ne découpent vraiment que contre near et far : pour x et y, une « guard band » laisse le rasteriseur ignorer ce qui déborde de l’écran.',
+                'Division perspective : NDC = (x/w, y/w, z/w), dans le cube [−1, 1]³.',
+                'Viewport : x_f = (x_ndc + 1)/2 · largeur + x₀, de même pour y ; z_f = (z_ndc + 1)/2 avec glDepthRange(0, 1). L’origine est en bas à gauche.',
+                'Culling : le signe de l’aire du triangle en coordonnées fenêtre dit s’il est vu de face. glFrontFace(GL_CCW) par défaut : sens trigonométrique = face avant. glCullFace(GL_BACK) jette l’autre avant toute rasterisation.',
+                'Dans POGL : GL_CULL_FACE activé dès l’initialisation, avec glCullFace(GL_BACK), et désactivé pour la passe du sol.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'raster',
+          kicker: '04',
+          title: 'Rasteriser : quels pixels ?',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'La question : quels pixels le triangle couvre-t-il ? La réponse d’OpenGL : ceux dont le centre, (x + ½, y + ½), est à l’intérieur. Chacun devient un fragment.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Fonction d’arête (Pineda, 1988) : E_ab(p) = (b − a) × (p − a) = (b_x − a_x)(p_y − a_y) − (b_y − a_y)(p_x − a_x).',
+                'E_ab(p) vaut le double de l’aire signée du triangle (a, b, p) : positive d’un côté de l’arête, négative de l’autre, nulle dessus.',
+                'p est dans le triangle si les trois fonctions d’arête ont le signe de l’aire du triangle.',
+                'E est affine en p : d’un pixel au voisin, elle augmente d’une constante. Le test coûte trois additions par pixel, et des milliers de pixels se testent en parallèle — c’est ce qui l’a imposé face au balayage ligne par ligne.',
+                'Parcours : la boîte englobante, découpée en tuiles ; une tuile entièrement hors d’une arête est rejetée d’un coup (rasterisation hiérarchique).',
+                'Barycentres : λ_a = E_bc(p) / E_bc(a), et de même pour b et c — les fonctions d’arête divisées par l’aire. Ils servent à l’interpolation.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterCoverage',
+              caption:
+                'Deux triangles, une arête partagée qui passe par {{shared}} centres de pixel. Avec la règle haut-gauche, chacun est produit par un seul triangle : {{n1}} pixels pour le premier, {{n2}} pour le second, aucun en double.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Le cas limite : un centre exactement sur une arête. Compté deux fois, le pixel serait mélangé deux fois (transparence, compteur de stencil) ; oublié, il laisserait un trou.',
+                'OpenGL exige qu’un tel centre soit produit par un seul des triangles qui partagent l’arête. Direct3D nomme la règle : « haut-gauche » — le centre compte s’il est sur une arête haute (horizontale, au-dessus) ou gauche.',
+                'Sans règle, avec un test ≥ 0 des deux côtés, les {{dupNoRule}} centres de l’arête seraient produits deux fois.',
+                'Les sommets sont arrondis sur une grille sous-pixel (GL_SUBPIXEL_BITS, au moins 4 bits) et le test se fait en entiers : exact, sans arrondi qui ferait scintiller une arête.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'interpolation',
+          kicker: '05',
+          title: 'Interpoler : la perspective',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Un fragment reçoit les sorties du vertex shader (uv_, frag_normal…) interpolées entre les trois sommets.',
+                'L’interpolation linéaire à l’écran, a = λ_a · a_a + λ_b · a_b + λ_c · a_c, est fausse : la projection n’est pas affine, et les barycentres à l’écran ne sont pas ceux de l’espace.',
+                'Ce qui est affine à l’écran, c’est a/w et 1/w. D’où la correction : a = (Σ λᵢ · aᵢ / wᵢ) / (Σ λᵢ / wᵢ).',
+                'C’est le défaut des sorties en GLSL (qualificatif smooth). noperspective donne l’interpolation affine ; flat prend la valeur d’un seul sommet, sans interpoler.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPerspective',
+              caption:
+                'Un sol en damier, deux triangles. À gauche, (u, v) interpolés à l’écran : la texture se casse sur la diagonale, avec un écart qui atteint {{uvError}} % de sa largeur. À droite, la formule corrigée.',
+            },
+            {
+              type: 'list',
+              items: [
+                'La profondeur, elle, s’interpole sans correction : z_ndc est déjà affine à l’écran. D’où un depth buffer non linéaire en distance.',
+                'Les fragments sont lancés par blocs de 2 × 2 pixels (des « quads »). dFdx et dFdy sont des différences entre voisins du quad, et le niveau de mipmap en dépend. Au bord d’un triangle, des invocations « helper » tournent pour rien, juste pour fournir ces voisins.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'depth',
+          kicker: '06',
+          title: 'La profondeur',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Stocké : z_f = (z_ndc + 1)/2, avec z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d).',
+                'Une hyperbole en d : la précision est concentrée près du plan near.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterDepth',
+              caption:
+                'Avec la caméra de POGL (near = {{near}}, far = {{far}}), la moitié de la plage [0, 1] est dépensée avant la distance {{halfDist}} — dans les premiers {{halfPct}} % de la profondeur de la scène.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Pas d’un depth buffer 24 bits : Δd ≈ 2⁻²⁴ · (f − n) · d² / (f · n). Dans POGL, {{step10}} unité à la distance 10, {{step250}} à la distance 250 : {{ratio}} fois plus grossier, le carré du rapport des distances.',
+                'Z-fighting : deux surfaces plus proches que Δd tombent sur la même valeur, et le test de profondeur les départage au hasard du pixel.',
+                'Le levier, c’est near, pas far : pour f ≫ n, Δd ≈ 2⁻²⁴ · d² / n. Passer near de 1 à 0,1 dégrade tout d’un facteur 10 ; repousser far ne change presque rien.',
+                'Reverse-Z : glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE), depth buffer flottant (GL_DEPTH_COMPONENT32F), near → 1, far → 0, glDepthFunc(GL_GREATER). La densité des flottants près de 0 compense l’hyperbole : une précision presque uniforme.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'fragment',
+          kicker: '07',
+          title: 'Du fragment au pixel',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Fragment : un pixel candidat, avec sa position, sa profondeur et ses entrées interpolées. Le fragment shader en fait une couleur (out vec4), ou le jette (discard).',
+                'Ensuite, dans l’ordre : propriété du pixel, test de scissor, test de stencil, test de profondeur, puis mélange, conversion sRGB et masques d’écriture.',
+                'Early-Z : le GPU fait le test de profondeur avant le fragment shader, et n’ombre pas les fragments cachés. Impossible si le shader écrit gl_FragDepth ; discard empêche d’écrire la profondeur en avance. layout(early_fragment_tests) in; force le test en amont.',
+                'Conséquence : dessiner les opaques de l’avant vers l’arrière, ou faire une pré-passe de profondeur, réduit l’overdraw.',
+                'Mélange : couleur = src · facteur_src + dst · facteur_dst. Transparence classique : glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA). Les objets transparents passent après les opaques, de l’arrière vers l’avant, écriture de profondeur coupée (glDepthMask(GL_FALSE)).',
+                'MSAA : couverture et profondeur testées par échantillon (4 par pixel en 4×), mais un seul appel du fragment shader par pixel et par triangle ; la moyenne se fait à la fin (« resolve »). Les arêtes sont lissées pour un coût d’ombrage presque inchangé — pas l’aliasing d’une texture ou d’un shader.',
+                'Dans POGL : GL_DEPTH_TEST activé, la scène rendue dans un FBO RGB16F, puis une passe de post-traitement pour les contours et les god rays (voir la note sur le cel shading).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '08',
+          title: 'Questions d’entretien',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Pourquoi des triangles ? Toujours plans et convexes, fixés par trois points : l’intérieur se teste avec trois fonctions d’arête, et l’interpolation barycentrique est unique.',
+                'Que contient gl_Position ? Des coordonnées de clip homogènes ; la division par w est faite après, par le matériel.',
+                'Pourquoi clipper avant de diviser ? Derrière la caméra, w ≤ 0 : la division renverrait le point de l’autre côté.',
+                'Pourquoi near > 0 ? À d = 0, la division est impossible, et la précision de profondeur est proportionnelle à near.',
+                'Le z-fighting, et ses remèdes ? Deux profondeurs à moins d’un pas Δd. Reculer near, réduire far / near, passer en reverse-Z, ou glPolygonOffset pour une décalcomanie posée sur une surface.',
+                'Pourquoi corriger l’interpolation ? Les attributs sont affines dans l’espace, pas à l’écran ; a/w et 1/w le sont.',
+                'Un pixel sur l’arête de deux triangles ? La règle de remplissage (haut-gauche) le donne à un seul.',
+                'Quand perd-on l’early-Z ? En écrivant gl_FragDepth ; discard et alpha-to-coverage empêchent aussi la mise à jour anticipée de la profondeur.',
+                'MSAA ou SSAA ? MSAA : couverture par échantillon, ombrage par pixel. SSAA : tout par échantillon, coût multiplié par le nombre d’échantillons.',
+                'Forward ou deferred ? Forward : l’éclairage dans le fragment shader de chaque objet. Deferred : une passe écrit normales, albédo et profondeur (le G-buffer), l’éclairage vient ensuite, par pixel — beaucoup de lumières, mais transparence et MSAA plus difficiles.',
+                'Rasterisation ou lancer de rayons ? Rasterisation : pour chaque triangle, quels pixels — l’objet d’abord. Lancer de rayons : pour chaque pixel, quel objet — l’image d’abord. Le ray marcher du portfolio est de ce côté-là.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '09',
+          title: 'Pour aller plus loin',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'The OpenGL 4.6 Core Profile Specification — les chapitres sur le post-traitement des sommets, la rasterisation et les opérations par fragment.',
+                'Fabian Giesen, A trip through the Graphics Pipeline (2011) — le même chemin, côté matériel.',
+                'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — les fonctions d’arête.',
+                'Nathan Reed, Depth Precision Visualized (2015) — le reverse-Z, courbes à l’appui.',
+                'Scratchapixel, Rasterization: a Practical Implementation — un rasteriseur logiciel pas à pas.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      kicker: 'Rendering · GPU-Pipeline',
+      title: 'Vom Dreieck',
+      titleAccent: 'zum Pixel',
+      description:
+        'Lernnotizen zu Rasterung und OpenGL-Pipeline, vom Vertex zum Pixel: Koordinatenräume, Clipping, Kantenfunktionen, perspektivisch korrekte Interpolation, Tiefe, Tests pro Fragment — und die passenden Interviewfragen. Zahlen mit der POGL-Kamera nachgerechnet.',
+      sections: [
+        {
+          id: 'pipeline',
+          kicker: '01',
+          title: 'Die ganze Kette in einer Abbildung',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Eingabe: Vertices (Attribute in VBOs, beschrieben durch ein VAO) und ein Primitivtyp — glDrawArrays(GL_TRIANGLES, …) oder glDrawElements mit Indexpuffer.',
+                'Zwei programmierbare Pflichtstufen: der Vertex-Shader, ein Aufruf pro Vertex; der Fragment-Shader, einer pro Fragment. Tessellation und Geometry-Shader sind optional und liegen dazwischen.',
+                'Alles andere ist feste Funktion: Man programmiert es nicht, man setzt Zustände — glViewport, glCullFace, glDepthFunc, glBlendFunc, glEnable.',
+                'Ausgabe: Werte im Framebuffer (Farbe, Tiefe, Stencil), auf dem Bildschirm oder über ein FBO in einer Textur.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPipeline',
+              caption:
+                'Die zehn Stufen eines Draw Calls. Erste Reihe: Vertices. Zweite: Pixel. Die Rasterung ist das Gelenk dazwischen.',
+            },
+          ],
+        },
+        {
+          id: 'spaces',
+          kicker: '02',
+          title: 'Vom Vertex in den Clip Space',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Objekt → Welt: die Model-Matrix M. Welt → Ansicht: die View-Matrix V (ein lookAt). Ansicht → Clip: die Projektion P.',
+                'Der Vertex-Shader muss gl_Position in Clip-Koordinaten schreiben: ein homogener vec4 (x, y, z, w). Die Division durch w ist noch nicht geschehen.',
+                'OpenGL-Ansichtsraum: Die Kamera blickt entlang −z. Die Projektion legt −z_Ansicht in w: w_clip ist der Abstand vor der Kamera.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glVertexShader',
+              caption:
+                'Der Vertex-Shader von POGL: Die Attribute kommen über layout(location), und gl_Position = P · MV · position.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Normalen transformieren sich nicht wie Punkte: Die richtige Matrix ist die Transponierte der Inversen, ((MV)⁻¹)ᵀ — die „Normal Matrix“.',
+                'mat3(model_view_matrix) wie oben ist nur (bis auf die Länge) richtig bei Rotationen, Translationen und gleichmäßigen Skalierungen. Eine ungleichmäßige Skalierung kippt die Normalen.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'glFrustum',
+              caption:
+                'Die Projektion von POGL im Format von glFrustum. Letzte Zeile: w = −z_Ansicht. Dritte: z_clip = k · z_Ansicht + l. POGL ruft sie mit near = {{near}}, far = {{far}} und top = 1 auf: ein vertikales Sichtfeld von {{vfov}}°.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Nach der Division: z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d), d der Abstand. Near ergibt −1, far ergibt +1.',
+                'Eine Hyperbel in d, keine Gerade: Abschnitt 06 folgt ganz daraus.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'clip',
+          kicker: '03',
+          title: 'Assemblierung, Clipping, Division, Viewport',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Assemblierung: Die transformierten Vertices werden zu Primitiven gruppiert — drei pro Dreieck bei GL_TRIANGLES, einer mehr pro Dreieck bei GL_TRIANGLE_STRIP. Ein Post-Transform-Cache erspart den erneuten Vertex-Shader-Aufruf für einen schon gesehenen Index.',
+                'Clipping in Clip-Koordinaten: Sichtbar ist, was −w ≤ x ≤ w, −w ≤ y ≤ w und −w ≤ z ≤ w erfüllt. Ein Dreieck, das das Volumen schneidet, wird zu einem Polygon zugeschnitten und neu trianguliert.',
+                'Warum vor der Division: Hinter der Kamera ist w ≤ 0. Zuerst zu dividieren würde die Vorzeichen umkehren und den Punkt auf die andere Bildseite schicken. Die Near-Ebene schneidet diese Dreiecke.',
+                'In der Praxis clippen GPUs nur gegen near und far wirklich: Für x und y lässt ein „Guard Band“ den Rasterizer ignorieren, was über den Bildschirm hinausragt.',
+                'Perspektivische Division: NDC = (x/w, y/w, z/w), im Würfel [−1, 1]³.',
+                'Viewport: x_f = (x_ndc + 1)/2 · Breite + x₀, ebenso für y; z_f = (z_ndc + 1)/2 mit glDepthRange(0, 1). Der Ursprung liegt unten links.',
+                'Culling: Das Vorzeichen der Dreiecksfläche in Fensterkoordinaten zeigt, ob es zur Kamera zeigt. glFrontFace(GL_CCW) als Vorgabe: gegen den Uhrzeigersinn = Vorderseite. glCullFace(GL_BACK) verwirft die andere vor jeder Rasterung.',
+                'In POGL: GL_CULL_FACE ab der Initialisierung aktiv, mit glCullFace(GL_BACK), und für den Boden-Pass deaktiviert.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'raster',
+          kicker: '04',
+          title: 'Rastern: welche Pixel?',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Die Frage: Welche Pixel deckt das Dreieck? Die Antwort von OpenGL: die, deren Zentrum (x + ½, y + ½) innen liegt. Jedes davon wird ein Fragment.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Kantenfunktion (Pineda, 1988): E_ab(p) = (b − a) × (p − a) = (b_x − a_x)(p_y − a_y) − (b_y − a_y)(p_x − a_x).',
+                'E_ab(p) ist die doppelte vorzeichenbehaftete Fläche des Dreiecks (a, b, p): positiv auf einer Seite der Kante, negativ auf der anderen, null darauf.',
+                'p liegt innen, wenn alle drei Kantenfunktionen das Vorzeichen der Dreiecksfläche haben.',
+                'E ist affin in p: Von einem Pixel zum nächsten wächst sie um eine Konstante. Der Test kostet drei Additionen pro Pixel, und Tausende Pixel werden parallel getestet — deshalb hat er die Zeilenabtastung verdrängt.',
+                'Durchlauf: die Bounding Box, in Kacheln geteilt; eine Kachel ganz außerhalb einer Kante wird auf einmal verworfen (hierarchische Rasterung).',
+                'Baryzentrische Koordinaten: λ_a = E_bc(p) / E_bc(a), ebenso für b und c — die Kantenfunktionen geteilt durch die Fläche. Sie steuern die Interpolation.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterCoverage',
+              caption:
+                'Zwei Dreiecke, eine gemeinsame Kante durch {{shared}} Pixelzentren. Mit der Top-Left-Regel erzeugt jedes nur ein Dreieck: {{n1}} Pixel für das erste, {{n2}} für das zweite, keines doppelt.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Der Grenzfall: ein Zentrum genau auf einer Kante. Doppelt gezählt, würde das Pixel zweimal geblendet (Transparenz, Stencil-Zähler); ausgelassen, entstünde ein Loch.',
+                'OpenGL verlangt, dass ein solches Zentrum von genau einem der Dreiecke an der Kante erzeugt wird. Direct3D benennt die Regel: „Top-Left“ — das Zentrum zählt, wenn es auf einer oberen (waagerecht, oben) oder linken Kante liegt.',
+                'Ohne Regel, mit einem Test ≥ 0 auf beiden Seiten, würden die {{dupNoRule}} Zentren der Kante doppelt erzeugt.',
+                'Die Vertices werden auf ein Subpixel-Raster gerundet (GL_SUBPIXEL_BITS, mindestens 4 Bit), und der Test läuft in Ganzzahlen: exakt, ohne Rundung, die eine Kante flackern ließe.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'interpolation',
+          kicker: '05',
+          title: 'Interpolieren: die Perspektive',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Ein Fragment erhält die Ausgaben des Vertex-Shaders (uv_, frag_normal…), zwischen den drei Vertices interpoliert.',
+                'Lineare Interpolation im Bildraum, a = λ_a · a_a + λ_b · a_b + λ_c · a_c, ist falsch: Die Projektion ist nicht affin, und die baryzentrischen Koordinaten im Bild sind nicht die im Raum.',
+                'Affin im Bildraum sind a/w und 1/w. Daher die Korrektur: a = (Σ λᵢ · aᵢ / wᵢ) / (Σ λᵢ / wᵢ).',
+                'Das ist die Vorgabe für GLSL-Ausgaben (Qualifier smooth). noperspective ergibt affine Interpolation; flat nimmt den Wert eines einzigen Vertex, ohne Interpolation.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterPerspective',
+              caption:
+                'Ein Schachbrettboden, zwei Dreiecke. Links (u, v) im Bildraum interpoliert: Die Textur bricht an der Diagonale, mit einer Abweichung von bis zu {{uvError}} % ihrer Breite. Rechts die korrigierte Formel.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Die Tiefe dagegen wird ohne Korrektur interpoliert: z_ndc ist im Bildraum bereits affin. Daher ein im Abstand nichtlinearer Tiefenpuffer.',
+                'Fragmente werden in 2 × 2-Blöcken („Quads“) gestartet. dFdx und dFdy sind Differenzen zwischen Quad-Nachbarn, und die Mipmap-Stufe hängt davon ab. Am Dreiecksrand laufen „Helper“-Aufrufe umsonst, nur um diese Nachbarn zu liefern.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'depth',
+          kicker: '06',
+          title: 'Die Tiefe',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Gespeichert: z_f = (z_ndc + 1)/2, mit z_ndc = (f + n)/(f − n) − 2fn / ((f − n) · d).',
+                'Eine Hyperbel in d: Die Genauigkeit ballt sich nahe der Near-Ebene.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'rasterDepth',
+              caption:
+                'Mit der POGL-Kamera (near = {{near}}, far = {{far}}) ist die Hälfte des Bereichs [0, 1] vor dem Abstand {{halfDist}} verbraucht — in den ersten {{halfPct}} % der Szenentiefe.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Schrittweite eines 24-Bit-Tiefenpuffers: Δd ≈ 2⁻²⁴ · (f − n) · d² / (f · n). In POGL {{step10}} Einheiten im Abstand 10, {{step250}} im Abstand 250: {{ratio}}-mal gröber, das Quadrat des Abstandsverhältnisses.',
+                'Z-Fighting: Zwei Flächen, die näher beieinander liegen als Δd, landen auf demselben Wert, und der Tiefentest entscheidet von Pixel zu Pixel zufällig.',
+                'Der Hebel ist near, nicht far: Für f ≫ n gilt Δd ≈ 2⁻²⁴ · d² / n. Near von 1 auf 0,1 zu senken verschlechtert alles um den Faktor 10; far hinauszuschieben ändert kaum etwas.',
+                'Reverse-Z: glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE), Gleitkomma-Tiefenpuffer (GL_DEPTH_COMPONENT32F), near → 1, far → 0, glDepthFunc(GL_GREATER). Die Dichte der Gleitkommazahlen nahe 0 gleicht die Hyperbel aus: nahezu gleichmäßige Genauigkeit.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'fragment',
+          kicker: '07',
+          title: 'Vom Fragment zum Pixel',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Fragment: ein Pixelkandidat mit Position, Tiefe und interpolierten Eingaben. Der Fragment-Shader macht daraus eine Farbe (out vec4) oder verwirft ihn (discard).',
+                'Danach, der Reihe nach: Pixel Ownership, Scissor-Test, Stencil-Test, Tiefentest, dann Blending, sRGB-Umwandlung und Schreibmasken.',
+                'Early-Z: Die GPU macht den Tiefentest vor dem Fragment-Shader und schattiert verdeckte Fragmente nicht. Unmöglich, wenn der Shader gl_FragDepth schreibt; discard verhindert das vorzeitige Schreiben der Tiefe. layout(early_fragment_tests) in; erzwingt den Test vorab.',
+                'Folge: Opake Objekte von vorn nach hinten zu zeichnen oder ein Tiefen-Pre-Pass reduziert Overdraw.',
+                'Blending: Farbe = src · Faktor_src + dst · Faktor_dst. Klassische Transparenz: glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA). Transparente Objekte kommen nach den opaken, von hinten nach vorn, ohne Tiefenschreiben (glDepthMask(GL_FALSE)).',
+                'MSAA: Abdeckung und Tiefe pro Sample getestet (4 pro Pixel bei 4×), aber ein Fragment-Shader-Aufruf pro Pixel und Dreieck; der Mittelwert entsteht am Ende („Resolve“). Kanten werden fast ohne Shading-Kosten geglättet — nicht das Aliasing innerhalb einer Textur oder eines Shaders.',
+                'In POGL: GL_DEPTH_TEST aktiv, die Szene in ein RGB16F-FBO gerendert, dann ein Post-Process-Pass für Konturen und God Rays (siehe die Notiz zum Cel Shading).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '08',
+          title: 'Interviewfragen',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Warum Dreiecke? Immer eben und konvex, durch drei Punkte festgelegt: Innen ist ein Test mit drei Kantenfunktionen, und die baryzentrische Interpolation ist eindeutig.',
+                'Was enthält gl_Position? Homogene Clip-Koordinaten; die Division durch w erfolgt danach, in Hardware.',
+                'Warum vor der Division clippen? Hinter der Kamera ist w ≤ 0: Die Division schickte den Punkt auf die andere Seite.',
+                'Warum near > 0? Bei d = 0 ist die Division unmöglich, und die Tiefengenauigkeit ist proportional zu near.',
+                'Z-Fighting und Abhilfe? Zwei Tiefen innerhalb eines Schritts Δd. Near weiter weg, far / near verkleinern, Reverse-Z, oder glPolygonOffset für ein Decal auf einer Fläche.',
+                'Warum die Interpolation korrigieren? Die Attribute sind im Raum affin, nicht im Bild; a/w und 1/w sind es.',
+                'Ein Pixel auf der Kante zweier Dreiecke? Die Füllregel (Top-Left) gibt es genau einem.',
+                'Wann geht Early-Z verloren? Beim Schreiben von gl_FragDepth; discard und Alpha-to-Coverage verhindern ebenfalls das vorzeitige Tiefen-Update.',
+                'MSAA oder SSAA? MSAA: Abdeckung pro Sample, Shading pro Pixel. SSAA: alles pro Sample, Kosten mal Sample-Anzahl.',
+                'Forward oder Deferred? Forward: Beleuchtung im Fragment-Shader jedes Objekts. Deferred: Ein Pass schreibt Normalen, Albedo und Tiefe (den G-Buffer), die Beleuchtung folgt pro Pixel — viele Lichter, aber Transparenz und MSAA werden schwieriger.',
+                'Rasterung oder Raytracing? Rasterung: für jedes Dreieck, welche Pixel — zuerst das Objekt. Raytracing: für jedes Pixel, welches Objekt — zuerst das Bild. Der Ray Marcher des Portfolios steht auf dieser Seite.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'further',
+          kicker: '09',
+          title: 'Weiterführend',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'The OpenGL 4.6 Core Profile Specification — die Kapitel zur Vertex-Nachverarbeitung, zur Rasterung und zu den Operationen pro Fragment.',
+                'Fabian Giesen, A trip through the Graphics Pipeline (2011) — derselbe Weg, aus Sicht der Hardware.',
+                'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — die Kantenfunktionen.',
+                'Nathan Reed, Depth Precision Visualized (2015) — Reverse-Z, mit Kurven.',
+                'Scratchapixel, Rasterization: a Practical Implementation — ein Software-Rasterizer Schritt für Schritt.',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+/**
+ * Les chiffres de la note rasterisation : la caméra de POGL, la profondeur
+ * qu'elle produit, la couverture et l'interpolation, tous recalculés par
+ * `src/lib/raster.ts`.
+ */
+const rasterFacts = (): Record<string, Fact> => {
+  const { near, far, top } = rasterLib.POGL;
+  const vfov = rasterLib.verticalFov(top, near);
+  const half = rasterLib.halfDepthDistance(near, far);
+  const step10 = rasterLib.depthStep(10, near, far);
+  const step250 = rasterLib.depthStep(250, near, far);
+
+  const scene = rasterLib.coverageScene();
+  const cells = scene.owner.flat();
+  const twice = cells.filter((o) => o === 3).length;
+  let noRule = 0;
+  let sharedOnce = 0;
+  for (let y = 0; y < scene.h; y++) {
+    for (let x = 0; x < scene.w; x++) {
+      if (rasterLib.coversInclusive(scene.t1, x, y) && rasterLib.coversInclusive(scene.t2, x, y)) {
+        noRule++;
+        if (scene.owner[y]![x] === 1 || scene.owner[y]![x] === 2) sharedOnce++;
+      }
+    }
+  }
+  const persp = rasterLib.perspectiveScene(64, 32);
+
+  claim(Math.round(vfov) === 90, 'le champ vertical de POGL est de 90°');
+  claim(Math.abs(rasterLib.zNdc(near, near, far) + 1) < 1e-9 && Math.abs(rasterLib.zNdc(far, near, far) - 1) < 1e-9, 'near donne −1 et far +1');
+  claim(Math.abs(rasterLib.windowDepth(half, near, far) - 0.5) < 1e-9 && half < 2, 'la moitié de la profondeur est dépensée avant 2');
+  claim(Math.abs(step250 / step10 - 625) < 1e-6, 'le pas de profondeur croît comme le carré de la distance');
+  claim(twice === 0, 'aucun pixel n’est produit deux fois avec la règle haut-gauche');
+  claim(noRule === scene.onShared && sharedOnce === noRule, 'sans règle, chaque centre de l’arête partagée serait produit deux fois ; avec, une seule');
+  claim(rasterLib.area2(...scene.t1) !== 0 && rasterLib.area2(...scene.t2) !== 0, 'les deux triangles ne sont pas dégénérés');
+  claim(persp.maxError > 0.3, 'l’interpolation affine s’écarte nettement de la correcte');
+
+  return {
+    near,
+    far,
+    vfov: Math.round(vfov),
+    halfDist: fixed(half, 2),
+    halfPct: fixed(((half - near) / (far - near)) * 100, 1),
+    step10: (locale: Locale) => num(step10, locale),
+    step250: fixed(step250, 4),
+    ratio: Math.round(step250 / step10),
+    shared: scene.onShared,
+    dupNoRule: noRule,
+    n1: cells.filter((o) => o === 1).length,
+    n2: cells.filter((o) => o === 2).length,
+    uvError: Math.round(persp.maxError * 100),
+  };
+};
+
 const toonFacts = (): Record<string, Fact> => {
   const barkTexels = toonLib.rampTexels(toonLib.RAMP.levels, toonLib.RAMP.barkFloor);
   const foliageTexels = toonLib.rampTexels(toonLib.RAMP.levels, toonLib.RAMP.foliageFloor);
@@ -3185,7 +3996,7 @@ function fill(text: string, facts: Record<string, Fact>, locale: Locale): string
  * ensemble), le banc d'essai des méthodes de descente, puis les notes U-Net. Les notes SVM viendront des deux notebooks de TP (`ocvx/`) une
  * fois ceux-ci complétés.
  */
-const all: NoteDef[] = [optics, cel, descent, unet];
+const all: NoteDef[] = [optics, raster, cel, descent, unet];
 
 /** En production, les brouillons n'existent pas : ni page, ni ligne, ni lien. */
 const definitions = all.filter((def) => !def.draft || import.meta.env.DEV);

@@ -1,0 +1,73 @@
+---
+/**
+ * Cours rasterisation — le pipeline OpenGL, du sommet au pixel. Dix étapes en
+ * serpentin : la première rangée travaille sur des sommets, la seconde sur
+ * des pixels. Les deux étapes programmables (vertex et fragment shader) sont
+ * cerclées dans l'accent ; tout le reste est câblé dans le GPU, et ne se
+ * règle que par des états (glEnable, glDepthFunc, glBlendFunc…).
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { arrowHead } from '../../lib/diagram-geometry';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const stages = [
+  { key: 'fetch', sub: 'VAO · VBO' },
+  { key: 'vertex', sub: '→ clip', programmable: true },
+  { key: 'assembly', sub: 'GL_TRIANGLES' },
+  { key: 'clip', sub: '−w ≤ x, y, z ≤ w' },
+  { key: 'divide', sub: '→ NDC' },
+  { key: 'viewport', sub: '→ window' },
+  { key: 'cull', sub: 'signed area' },
+  { key: 'raster', sub: '→ fragments' },
+  { key: 'fragment', sub: 'out vec4', programmable: true },
+  { key: 'tests', sub: '→ framebuffer' },
+] as const;
+
+const W = 112;
+const H = 40;
+const GAP = 16;
+const ROW = [26, 132];
+// Rangée 1 de gauche à droite, rangée 2 de droite à gauche : un serpentin.
+const place = (i: number) => {
+  const row = i < 5 ? 0 : 1;
+  const col = row === 0 ? i : 9 - i;
+  return { x: 4 + col * (W + GAP), y: ROW[row]!, row };
+};
+const boxes = stages.map((s, i) => ({ ...s, ...place(i) }));
+const arrows = boxes.slice(0, -1).map((b, i) => {
+  const n = boxes[i + 1]!;
+  if (b.row !== n.row) return { a: [b.x + W / 2, b.y + H + 22] as [number, number], b: [n.x + W / 2, n.y - 2] as [number, number] };
+  const dir = b.row === 0 ? 1 : -1;
+  const from: [number, number] = [dir > 0 ? b.x + W : b.x, b.y + H / 2];
+  const to: [number, number] = [dir > 0 ? n.x - 2 : n.x + W + 2, n.y + H / 2];
+  return { a: from, b: to };
+});
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 232" role="img" aria-label={t('diagram.rasterPipeline.alt')}>
+  {arrows.map(({ a, b }) => (
+    <g>
+      <line class="d-line" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+      <polygon class="d-head" points={arrowHead(a, b, 6)} />
+    </g>
+  ))}
+  {boxes.map((b) => (
+    <g>
+      <rect class="d-shape" x={b.x} y={b.y} width={W} height={H} rx="3" />
+      {'programmable' in b && <rect class="d-focus" x={b.x} y={b.y} width={W} height={H} rx="3" />}
+      <text class={'programmable' in b ? 'd-label-accent' : 'd-label'} x={b.x + W / 2} y={b.y + H / 2 + 4.5} text-anchor="middle">
+        {t(`diagram.raster.stage.${b.key}`)}
+      </text>
+      <text class="d-label" x={b.x + W / 2} y={b.y + H + 16} text-anchor="middle" font-size="11">
+        {b.key === 'viewport' ? t('diagram.raster.window') : b.key === 'cull' ? t('diagram.raster.signedArea') : b.sub}
+      </text>
+    </g>
+  ))}
+  <rect class="d-focus" x="4" y="210" width="16" height="10" rx="2" />
+  <text class="d-label" x="28" y="219">{t('diagram.raster.programmable')}</text>
+  <rect class="d-shape" x="250" y="210" width="16" height="10" rx="2" />
+  <text class="d-label" x="274" y="219">{t('diagram.raster.fixed')}</text>
+</svg>

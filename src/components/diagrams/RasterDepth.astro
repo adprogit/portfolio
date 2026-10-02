@@ -1,0 +1,45 @@
+---
+/**
+ * Cours rasterisation — ce que le depth buffer stocke. En abscisse la
+ * distance à la caméra (échelle log), en ordonnée la profondeur écrite,
+ * calculée avec la matrice `frustum` de POGL : far = 250, et trois plans
+ * near. Avec near = 1 (POGL), la moitié de [0, 1] est dépensée avant 2.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { POGL, windowDepth } from '../../lib/raster';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const far = POGL.far;
+const curve = (near: number) =>
+  Array.from({ length: 241 }, (_, i) => near * (far / near) ** (i / 240)).map(
+    (d) => [d, windowDepth(d, near, far)] as [number, number]
+  );
+---
+
+<Legend
+  entries={[
+    { key: 'n01', label: 'near = 0.1' },
+    { key: 'n1', label: 'near = 1 (POGL)' },
+    { key: 'n10', label: 'near = 10' },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="raster-depth"
+    alt={t('diagram.rasterDepth.alt')}
+    // L'axe commence un peu avant 0,1 : la graduation ne bute pas sur le 0 vertical.
+    x={{ domain: [0.07, far], log: true, label: t('diagram.raster.distance') }}
+    y={{ domain: [0, 1], label: t('diagram.raster.depth') }}
+    guides={[[[0.07, 0.5], [far, 0.5]]]}
+    series={[
+      { key: 'n01', points: curve(0.1), marker: 'none' },
+      { key: 'n1', points: curve(POGL.near), marker: 'none' },
+      { key: 'n10', points: curve(10), marker: 'none' },
+    ]}
+  />
+</div>

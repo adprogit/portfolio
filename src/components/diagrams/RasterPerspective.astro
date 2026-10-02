@@ -1,0 +1,38 @@
+---
+/**
+ * Cours rasterisation — un sol en damier, deux triangles, la même scène deux
+ * fois. À gauche, (u, v) interpolés linéairement à l'écran : chaque triangle
+ * est juste, mais la texture se casse le long de leur diagonale. À droite,
+ * u/w, v/w et 1/w interpolés puis divisés, comme le fait OpenGL. Chaque
+ * pixel vient de `perspectiveScene()` (`src/lib/raster.ts`).
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { perspectiveScene } from '../../lib/raster';
+import { levelPaths } from '../../lib/toon';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const W = 64;
+const H = 32;
+const scale = 4.5;
+const s = perspectiveScene(W, H);
+const X = [20, 332];
+const Y = 6;
+const panels = [
+  { grid: s.affine, label: t('diagram.raster.affine') },
+  { grid: s.correct, label: t('diagram.raster.correct') },
+];
+const [d0, d1] = s.diagonal;
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 186" role="img" aria-label={t('diagram.rasterPerspective.alt')} shape-rendering="crispEdges">
+  {panels.map(({ grid, label }, k) => (
+    <g>
+      {levelPaths(grid, scale, X[k]!, Y).map(({ level, d }) => <path class={`rp-${level}`} d={d} />)}
+      <line class="d-rule" x1={X[k]! + d0!.x * scale} y1={Y + d0!.y * scale} x2={X[k]! + d1!.x * scale} y2={Y + d1!.y * scale} shape-rendering="auto" />
+      <text class="d-label" x={X[k]! + (W * scale) / 2} y={Y + H * scale + 22} text-anchor="middle">{label}</text>
+    </g>
+  ))}
+</svg>
