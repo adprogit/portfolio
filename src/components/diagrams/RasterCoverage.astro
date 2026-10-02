@@ -1,0 +1,48 @@
+---
+/**
+ * Cours rasterisation — qui produit quel pixel. Deux triangles partagent une
+ * arête qui passe exactement par des centres de pixel. Chaque pixel est testé
+ * en son centre par les trois fonctions d'arête (`src/lib/raster.ts`) ; un
+ * centre posé sur une arête ne compte que si l'arête est haute ou gauche.
+ * Résultat : l'arête partagée n'est produite qu'une fois, sans trou.
+ */
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { coverageScene, edge } from '../../lib/raster';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const s = coverageScene();
+const C = 25;
+// La grille au centre, la légende dessous sur deux colonnes : elle doit tenir
+// en allemand, où les libellés sont les plus longs.
+const OX = (640 - s.w * C) / 2;
+const OY = 8;
+const px = (x: number) => OX + x * C;
+const py = (y: number) => OY + y * C;
+const poly = (tri: { x: number; y: number }[]) => tri.map((p) => `${px(p.x)},${py(p.y)}`).join(' ');
+const cells = s.owner.flatMap((row, y) => row.map((o, x) => ({ x, y, o })));
+const onEdge = cells.filter(({ x, y }) => edge(s.q, s.p, { x: x + 0.5, y: y + 0.5 }) === 0 && y + 0.5 >= s.q.y && y + 0.5 <= s.p.y);
+const LY = OY + s.h * C + 30;
+const col = [40, 340];
+---
+
+<svg class="diagram-svg" viewBox="0 0 640 352" role="img" aria-label={t('diagram.rasterCoverage.alt')}>
+  {cells.filter((c) => c.o).map((c) => <rect class={`rc-${c.o}`} x={px(c.x)} y={py(c.y)} width={C} height={C} />)}
+  {Array.from({ length: s.w + 1 }, (_, i) => <line class="d-iso" x1={px(i)} y1={py(0)} x2={px(i)} y2={py(s.h)} />)}
+  {Array.from({ length: s.h + 1 }, (_, j) => <line class="d-iso" x1={px(0)} y1={py(j)} x2={px(s.w)} y2={py(j)} />)}
+  {cells.map((c) => <circle class="d-dot" cx={px(c.x + 0.5)} cy={py(c.y + 0.5)} r="1.6" />)}
+  <polygon class="d-ray" points={poly(s.t1)} fill="none" />
+  <polygon class="d-probe" points={poly(s.t2)} />
+  {onEdge.map((c) => <circle class="d-focus" cx={px(c.x + 0.5)} cy={py(c.y + 0.5)} r="5" />)}
+
+  <rect class="rc-1" x={col[0]} y={LY - 12} width="14" height="14" />
+  <text class="d-label" x={col[0]! + 22} y={LY}>{t('diagram.raster.first')}</text>
+  <rect class="rc-2" x={col[1]} y={LY - 12} width="14" height="14" />
+  <text class="d-label" x={col[1]! + 22} y={LY}>{t('diagram.raster.second')}</text>
+  <circle class="d-focus" cx={col[0]! + 7} cy={LY + 21} r="5" />
+  <text class="d-label" x={col[0]! + 22} y={LY + 26}>{t('diagram.raster.shared')}</text>
+  <circle class="d-dot" cx={col[1]! + 7} cy={LY + 21} r="1.6" />
+  <text class="d-label" x={col[1]! + 22} y={LY + 26}>{t('diagram.raster.center')}</text>
+</svg>

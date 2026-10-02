@@ -39,6 +39,11 @@ export const diagramKeys = [
   'toonEdges',
   'godRaysImage',
   'godRaysDecay',
+  // Rasterisation, du sommet au pixel — calculés depuis `src/lib/raster.ts`.
+  'rasterPipeline',
+  'rasterCoverage',
+  'rasterPerspective',
+  'rasterDepth',
 ] as const;
 
 export type DiagramKey = (typeof diagramKeys)[number];

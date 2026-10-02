@@ -932,6 +932,47 @@ if (rays_enabled && sclip.w > 0.0) {
 
 vec3 c = scene + rays * sun_color;`,
   },
+  glVertexShader: {
+    lang: 'glsl',
+    source: 'pogl/shaders/vertex.shd:3',
+    code: `layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 normalFlat;
+layout(location = 2) in vec2 uv;
+
+out vec2 uv_;
+out vec3 frag_position;
+out vec3 frag_normal;
+
+uniform mat4 model_view_matrix;
+uniform mat4 projection_matrix;
+
+void main()
+{
+    uv_ = uv;
+    frag_position = (model_view_matrix * vec4(position, 1.0)).xyz;
+    frag_normal = mat3(model_view_matrix) * normalFlat;
+    gl_Position = projection_matrix * model_view_matrix * vec4(position, 1.0);
+}`,
+  },
+  glFrustum: {
+    lang: 'cpp',
+    source: 'pogl/src/core/matrix4.cc:138',
+    code: `GLfloat a = 2.0f * nearVal / (right - left);
+GLfloat c = (right + left) / (right - left);
+GLfloat f = 2.0f * nearVal / (top - bottom);
+GLfloat g = (top + bottom) / (top - bottom);
+GLfloat k = -(farVal + nearVal) / (farVal - nearVal);
+GLfloat l = -(2.0f * farVal * nearVal) / (farVal - nearVal);
+// …
+M(2, 0) = 0.0f;
+M(2, 1) = 0.0f;
+M(2, 2) = k;
+M(2, 3) = l;
+M(3, 0) = 0.0f;
+M(3, 1) = 0.0f;
+M(3, 2) = -1.0f;
+M(3, 3) = 0.0f;`,
+  },
 } as const;
 
 export type SnippetKey = keyof typeof snippets;

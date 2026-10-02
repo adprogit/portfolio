@@ -76,6 +76,9 @@ const ROUTES = [
   '/notes/cel-shading/',
   '/fr/notes/cel-shading/',
   '/de/notes/cel-shading/',
+  '/notes/rasterization/',
+  '/fr/notes/rasterization/',
+  '/de/notes/rasterization/',
 ];
 
 const PORT = 4331 + (process.pid % 200);

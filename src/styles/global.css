@@ -1198,6 +1198,19 @@
   .s-d90 { --s: var(--color-accent-orange); }
   .s-d96 { --s: var(--color-accent-cyan); }
   .s-d99 { --s: var(--color-accent-purple); }
+  .s-n01 { --s: var(--color-accent-orange); }
+  .s-n1 { --s: var(--color-accent-cyan); }
+  .s-n10 { --s: var(--color-accent-purple); }
+
+  /*
+   * Rasterisation : les pixels produits par chaque triangle (l'accent de la
+   * note et la teinte « sonde ») et le damier de l'interpolation. Ce sont des
+   * données, pas une capture : elles suivent le thème.
+   */
+  .rc-1 { fill: color-mix(in oklab, var(--accent) 34%, transparent); }
+  .rc-2 { fill: color-mix(in oklab, var(--d-probe) 30%, transparent); }
+  .rp-0 { fill: var(--color-paper-sunken); }
+  .rp-1 { fill: var(--color-ink-soft); }
 
   /*
    * Les images rendues des schémas de cel shading : une palette fixe, pas des
