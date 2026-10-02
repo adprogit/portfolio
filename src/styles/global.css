@@ -1201,6 +1201,12 @@
   .s-n01 { --s: var(--color-accent-orange); }
   .s-n1 { --s: var(--color-accent-cyan); }
   .s-n10 { --s: var(--color-accent-purple); }
+  .s-ggx { --s: var(--color-accent-green); }
+  .s-beck { --s: var(--color-ink-soft); }
+  .s-ggx6 { --s: var(--color-accent-orange); }
+  .s-r25 { --s: var(--color-accent-cyan); }
+  .s-r50 { --s: var(--color-accent-orange); }
+  .s-r100 { --s: var(--color-accent-purple); }
 
   /*
    * Rasterisation : les pixels produits par chaque triangle (l'accent de la

@@ -37,6 +37,7 @@ import * as unetLib from '../lib/unet';
 // Le cel shading de ToonGL, recalculé à la compilation.
 import * as toonLib from '../lib/toon';
 import * as rasterLib from '../lib/raster';
+import * as pbrLib from '../lib/pbr';
 
 interface NoteText {
   /** Surtitre en mono, sans le `//`. */
@@ -3098,7 +3099,7 @@ const raster: NoteDef = {
       title: 'From triangle',
       titleAccent: 'to pixel',
       description:
-        'Revision notes on rasterization and the OpenGL pipeline, from vertex to pixel: coordinate spaces, clipping, edge functions, perspective-correct interpolation, depth, per-fragment tests — and the interview questions that go with them. Figures recomputed with the POGL camera.',
+        'Revision notes on rasterization and the OpenGL pipeline, from vertex to pixel: coordinate spaces, clipping, edge functions, perspective-correct interpolation, depth, per-fragment tests, PBR (Cook-Torrance, GGX, IBL) — and the interview questions that go with them. Figures recomputed with the POGL camera.',
       sections: [
         {
           id: 'pipeline',
@@ -3299,8 +3300,73 @@ const raster: NoteDef = {
           ],
         },
         {
-          id: 'questions',
+          id: 'pbr',
           kicker: '08',
+          title: 'PBR: Cook-Torrance, GGX, IBL',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Physically based rendering: reflected light comes from a BRDF that conserves energy and is reciprocal, driven by measurable quantities (albedo, metalness, roughness) rather than Blinn-Phong’s empirical ns and ks.',
+                'Rendering equation, locally: L_o(v) = ∫_Ω f(l, v) · L_i(l) · (n·l) dl. For a point light the integral collapses to one term: f · L_i · (n·l).',
+                'BRDF = diffuse + specular: f = k_d · albedo / π + f_spec. The 1/π normalises Lambert: ∫ cos θ dω = π over the hemisphere, and without it a white surface would return π times the energy it receives.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Cook-Torrance (1982): f_spec = D(h) · F(v, h) · G(l, v) / (4 · (n·l) · (n·v)), with h = normalize(l + v), the half vector.',
+                'Microfacet model: the surface is made of tiny mirrors; only those whose normal equals h reflect l towards v.',
+                'D, the normal distribution: the share of microfacets facing h. It sets the shape and size of the highlight.',
+                'F, Fresnel: the reflected share depending on angle. G, masking and shadowing: microfacets hiding each other. The 4 (n·l)(n·v) comes from the change of variable between h and l.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'GGX (Walter et al. 2007, the Trowbridge-Reitz distribution): D(h) = α² / (π · ((n·h)² (α² − 1) + 1)²), with α = roughness² — Disney’s remapping, for a perceptually linear slider.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrNdf',
+              caption:
+                'GGX against Beckmann at α = {{alpha}}: same peak, but {{tailDeg}}° away from the normal GGX is {{tailRatio}} times Beckmann. That long tail gives measured highlights their halo.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Fresnel, Schlick’s approximation: F = F₀ + (1 − F₀)(1 − v·h)⁵. Dielectric of index n: F₀ = ((n − 1)/(n + 1))², i.e. {{f0}} for n = 1.5 — the gap to exact Fresnel stays under {{schlickErr}}.',
+                'Metals: F₀ is coloured, it is their colour. In the metalness workflow: F₀ = mix(0.04, albedo, metalness), and k_d = (1 − F)(1 − metalness) — a metal has no diffuse.',
+                'G, Smith with Schlick-GGX: G₁(x) = (n·x) / ((n·x)(1 − k) + k), G = G₁(l) · G₁(v). k = (roughness + 1)² / 8 for a direct light, α / 2 for IBL (Karis, 2013).',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Image-based lighting: light comes from a whole environment cubemap. The integral no longer collapses to one term; too expensive per pixel, it is precomputed.',
+                'Diffuse: the irradiance map, a cosine convolution of the environment — a small cubemap (often 32 × 32 per face), looked up along the normal. Nine spherical-harmonic coefficients (Ramamoorthi and Hanrahan, 2001) do the same job.',
+                'Specular: Karis’s “split sum” separates the integral into two precomputed factors. First the environment prefiltered with GGX, one mipmap level per roughness, read along the reflected direction r = reflect(−v, n). Then the integrated BRDF, a 2D texture indexed by (n·v, roughness) that returns (A, B).',
+                'At render time: specular = prefiltered(r, roughness) · (F₀ · A + B). Two texture reads, no loop.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrSplitSum',
+              caption:
+                'The integrated BRDF, recomputed as in Karis’s code: {{lutSamples}} GGX samples per point. A scales F₀, B is added. Roughness {{lutRough}} at normal incidence: A + B = {{lutSum}}, almost all the energy comes back.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Approximations to know: prefiltering assumes n = v = r, so highlights do not stretch at grazing angles; and a single-scattering model loses energy at high roughness, compensated by Kulla and Conty (2017).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '09',
           title: 'Interview questions',
           blocks: [
             {
@@ -3317,13 +3383,17 @@ const raster: NoteDef = {
                 'MSAA or SSAA? MSAA: coverage per sample, shading per pixel. SSAA: everything per sample, cost multiplied by the sample count.',
                 'Forward or deferred? Forward: lighting in each object’s fragment shader. Deferred: one pass writes normals, albedo and depth (the G-buffer), lighting comes afterwards, per pixel — many lights, but transparency and MSAA get harder.',
                 'Rasterization or ray tracing? Rasterization: for each triangle, which pixels — object first. Ray tracing: for each pixel, which object — image first. The portfolio’s ray marcher sits on that side.',
+                'Why divide Lambert by π? So that an albedo of 1 returns exactly the energy received: ∫ cos θ dω = π over the hemisphere.',
+                'The role of each Cook-Torrance term? D the shape of the highlight, F the reflected share by angle, G self-shadowing; the denominator comes from the change of variable from h to l.',
+                'Why GGX rather than Beckmann or Blinn-Phong? Its long tail reproduces the halo of measured highlights.',
+                'The split sum? The IBL specular integral split into prefiltered environment × integrated BRDF: two precomputed textures, two reads at render time.',
               ],
             },
           ],
         },
         {
           id: 'further',
-          kicker: '09',
+          kicker: '10',
           title: 'Further reading',
           blocks: [
             {
@@ -3334,6 +3404,10 @@ const raster: NoteDef = {
                 'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — edge functions.',
                 'Nathan Reed, Depth Precision Visualized (2015) — reverse-Z, with curves.',
                 'Scratchapixel, Rasterization: a Practical Implementation — a software rasterizer step by step.',
+                'Robert Cook and Kenneth Torrance, A Reflectance Model for Computer Graphics (1982) — microfacets.',
+                'Walter, Marschner, Li and Torrance, Microfacet Models for Refraction through Rough Surfaces (2007) — GGX.',
+                'Brent Burley, Physically-Based Shading at Disney (2012) — α = roughness² and the principled model.',
+                'Brian Karis, Real Shading in Unreal Engine 4 (2013) — the split sum and Schlick-GGX.',
               ],
             },
           ],
@@ -3346,7 +3420,7 @@ const raster: NoteDef = {
       title: 'Du triangle',
       titleAccent: 'au pixel',
       description:
-        'Fiche de révision sur la rasterisation et le pipeline OpenGL, du sommet au pixel : espaces de coordonnées, clipping, fonctions d’arête, interpolation corrigée en perspective, profondeur, tests par fragment — et les questions d’entretien qui vont avec. Chiffres recalculés avec la caméra de POGL.',
+        'Fiche de révision sur la rasterisation et le pipeline OpenGL, du sommet au pixel : espaces de coordonnées, clipping, fonctions d’arête, interpolation corrigée en perspective, profondeur, tests par fragment, PBR (Cook-Torrance, GGX, IBL) — et les questions d’entretien qui vont avec. Chiffres recalculés avec la caméra de POGL.',
       sections: [
         {
           id: 'pipeline',
@@ -3547,8 +3621,73 @@ const raster: NoteDef = {
           ],
         },
         {
-          id: 'questions',
+          id: 'pbr',
           kicker: '08',
+          title: 'PBR : Cook-Torrance, GGX, IBL',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Physically based rendering : la lumière réfléchie se calcule avec une BRDF qui conserve l’énergie et respecte la réciprocité, réglée par des grandeurs mesurables (albédo, metalness, roughness) plutôt que par les ns et ks empiriques de Blinn-Phong.',
+                'Équation du rendu, en local : L_o(v) = ∫_Ω f(l, v) · L_i(l) · (n·l) dl. Pour une lumière ponctuelle, l’intégrale se réduit à un terme : f · L_i · (n·l).',
+                'BRDF = diffus + spéculaire : f = k_d · albédo / π + f_spec. Le 1/π normalise Lambert : ∫ cos θ dω = π sur l’hémisphère, et sans lui une surface blanche renverrait π fois l’énergie reçue.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Cook-Torrance (1982) : f_spec = D(h) · F(v, h) · G(l, v) / (4 · (n·l) · (n·v)), avec h = normalize(l + v), le vecteur moitié.',
+                'Modèle à microfacettes : la surface est faite de micro-miroirs ; seuls ceux dont la normale vaut h renvoient l vers v.',
+                'D, la distribution des normales : la part des microfacettes orientées selon h. Elle fait la forme et la taille du reflet.',
+                'F, Fresnel : la part réfléchie selon l’angle. G, masquage et ombrage : les microfacettes qui se cachent entre elles. Le 4 (n·l)(n·v) vient du changement de variable entre h et l.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'GGX (Walter et al. 2007, la distribution de Trowbridge-Reitz) : D(h) = α² / (π · ((n·h)² (α² − 1) + 1)²), avec α = roughness² — la reparamétrisation de Disney, pour un curseur perceptuellement linéaire.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrNdf',
+              caption:
+                'GGX contre Beckmann, à α = {{alpha}} : même pic, mais à {{tailDeg}}° de la normale GGX vaut {{tailRatio}} fois Beckmann. Cette longue traîne donne aux reflets mesurés leur halo.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Fresnel, approximation de Schlick : F = F₀ + (1 − F₀)(1 − v·h)⁵. Diélectrique d’indice n : F₀ = ((n − 1)/(n + 1))², soit {{f0}} pour n = 1,5 — l’écart avec Fresnel exact reste sous {{schlickErr}}.',
+                'Métaux : F₀ est coloré, c’est leur couleur. En workflow metalness : F₀ = mix(0,04, albédo, metalness), et k_d = (1 − F)(1 − metalness) — un métal n’a pas de diffus.',
+                'G, Smith en Schlick-GGX : G₁(x) = (n·x) / ((n·x)(1 − k) + k), G = G₁(l) · G₁(v). k = (roughness + 1)² / 8 pour une lumière directe, α / 2 pour l’IBL (Karis, 2013).',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Image based lighting : la lumière vient de toute une cubemap d’environnement. L’intégrale ne se réduit plus à un terme ; trop chère par pixel, elle est précalculée.',
+                'Diffus : la carte d’irradiance, convolution cosinus de l’environnement — une petite cubemap (souvent 32 × 32 par face), lue dans la direction de la normale. Neuf coefficients d’harmoniques sphériques (Ramamoorthi et Hanrahan, 2001) font le même travail.',
+                'Spéculaire : la « split sum » de Karis sépare l’intégrale en deux facteurs précalculés. D’abord l’environnement préfiltré par GGX, un niveau de mipmap par rugosité, lu dans la direction réfléchie r = reflect(−v, n). Ensuite la BRDF intégrée, une texture 2D indexée par (n·v, rugosité) qui rend (A, B).',
+                'Au rendu : spéculaire = préfiltré(r, rugosité) · (F₀ · A + B). Deux lectures de texture, aucune boucle.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrSplitSum',
+              caption:
+                'La BRDF intégrée, recalculée comme dans le code de Karis : {{lutSamples}} échantillons de GGX par point. A multiplie F₀, B s’y ajoute. Rugosité {{lutRough}} en incidence normale : A + B = {{lutSum}}, presque toute l’énergie revient.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Les approximations à connaître : le préfiltrage suppose n = v = r, si bien que les reflets ne s’étirent pas aux angles rasants ; et un modèle à une seule réflexion perd de l’énergie aux fortes rugosités, compensée par Kulla et Conty (2017).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '09',
           title: 'Questions d’entretien',
           blocks: [
             {
@@ -3565,13 +3704,17 @@ const raster: NoteDef = {
                 'MSAA ou SSAA ? MSAA : couverture par échantillon, ombrage par pixel. SSAA : tout par échantillon, coût multiplié par le nombre d’échantillons.',
                 'Forward ou deferred ? Forward : l’éclairage dans le fragment shader de chaque objet. Deferred : une passe écrit normales, albédo et profondeur (le G-buffer), l’éclairage vient ensuite, par pixel — beaucoup de lumières, mais transparence et MSAA plus difficiles.',
                 'Rasterisation ou lancer de rayons ? Rasterisation : pour chaque triangle, quels pixels — l’objet d’abord. Lancer de rayons : pour chaque pixel, quel objet — l’image d’abord. Le ray marcher du portfolio est de ce côté-là.',
+                'Pourquoi diviser Lambert par π ? Pour qu’un albédo de 1 renvoie exactement l’énergie reçue : ∫ cos θ dω = π sur l’hémisphère.',
+                'Le rôle de chaque terme de Cook-Torrance ? D la forme du reflet, F la part réfléchie selon l’angle, G l’auto-ombrage ; le dénominateur vient du changement de variable de h vers l.',
+                'Pourquoi GGX plutôt que Beckmann ou Blinn-Phong ? Sa longue traîne reproduit le halo des reflets mesurés.',
+                'La split sum ? L’intégrale spéculaire de l’IBL séparée en environnement préfiltré × BRDF intégrée : deux textures précalculées, deux lectures au rendu.',
               ],
             },
           ],
         },
         {
           id: 'further',
-          kicker: '09',
+          kicker: '10',
           title: 'Pour aller plus loin',
           blocks: [
             {
@@ -3582,6 +3725,10 @@ const raster: NoteDef = {
                 'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — les fonctions d’arête.',
                 'Nathan Reed, Depth Precision Visualized (2015) — le reverse-Z, courbes à l’appui.',
                 'Scratchapixel, Rasterization: a Practical Implementation — un rasteriseur logiciel pas à pas.',
+                'Robert Cook et Kenneth Torrance, A Reflectance Model for Computer Graphics (1982) — les microfacettes.',
+                'Walter, Marschner, Li et Torrance, Microfacet Models for Refraction through Rough Surfaces (2007) — GGX.',
+                'Brent Burley, Physically-Based Shading at Disney (2012) — α = roughness² et le modèle « principled ».',
+                'Brian Karis, Real Shading in Unreal Engine 4 (2013) — la split sum et Schlick-GGX.',
               ],
             },
           ],
@@ -3594,7 +3741,7 @@ const raster: NoteDef = {
       title: 'Vom Dreieck',
       titleAccent: 'zum Pixel',
       description:
-        'Lernnotizen zu Rasterung und OpenGL-Pipeline, vom Vertex zum Pixel: Koordinatenräume, Clipping, Kantenfunktionen, perspektivisch korrekte Interpolation, Tiefe, Tests pro Fragment — und die passenden Interviewfragen. Zahlen mit der POGL-Kamera nachgerechnet.',
+        'Lernnotizen zu Rasterung und OpenGL-Pipeline, vom Vertex zum Pixel: Koordinatenräume, Clipping, Kantenfunktionen, perspektivisch korrekte Interpolation, Tiefe, Tests pro Fragment, PBR (Cook-Torrance, GGX, IBL) — und die passenden Interviewfragen. Zahlen mit der POGL-Kamera nachgerechnet.',
       sections: [
         {
           id: 'pipeline',
@@ -3795,8 +3942,73 @@ const raster: NoteDef = {
           ],
         },
         {
-          id: 'questions',
+          id: 'pbr',
           kicker: '08',
+          title: 'PBR: Cook-Torrance, GGX, IBL',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Physically Based Rendering: Das reflektierte Licht stammt aus einer BRDF, die Energie erhält und reziprok ist, gesteuert durch messbare Größen (Albedo, Metalness, Roughness) statt durch die empirischen ns und ks von Blinn-Phong.',
+                'Rendering-Gleichung, lokal: L_o(v) = ∫_Ω f(l, v) · L_i(l) · (n·l) dl. Für eine Punktlichtquelle schrumpft das Integral auf einen Term: f · L_i · (n·l).',
+                'BRDF = diffus + spekular: f = k_d · Albedo / π + f_spec. Das 1/π normiert Lambert: ∫ cos θ dω = π über die Hemisphäre, und ohne es gäbe eine weiße Fläche das π-fache der empfangenen Energie zurück.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Cook-Torrance (1982): f_spec = D(h) · F(v, h) · G(l, v) / (4 · (n·l) · (n·v)), mit h = normalize(l + v), dem Halbvektor.',
+                'Mikrofacettenmodell: Die Fläche besteht aus winzigen Spiegeln; nur die, deren Normale h ist, werfen l in Richtung v.',
+                'D, die Normalenverteilung: der Anteil der Mikrofacetten, die nach h zeigen. Sie bestimmt Form und Größe des Glanzlichts.',
+                'F, Fresnel: der reflektierte Anteil je nach Winkel. G, Maskierung und Abschattung: Mikrofacetten, die sich gegenseitig verdecken. Das 4 (n·l)(n·v) kommt aus dem Variablenwechsel zwischen h und l.',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'GGX (Walter et al. 2007, die Trowbridge-Reitz-Verteilung): D(h) = α² / (π · ((n·h)² (α² − 1) + 1)²), mit α = Roughness² — die Umparametrisierung von Disney, für einen wahrnehmungslinearen Regler.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrNdf',
+              caption:
+                'GGX gegen Beckmann bei α = {{alpha}}: derselbe Gipfel, doch {{tailDeg}}° von der Normalen ist GGX {{tailRatio}}-mal Beckmann. Dieser lange Ausläufer gibt gemessenen Glanzlichtern ihren Halo.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Fresnel, Näherung von Schlick: F = F₀ + (1 − F₀)(1 − v·h)⁵. Dielektrikum mit Index n: F₀ = ((n − 1)/(n + 1))², also {{f0}} für n = 1,5 — die Abweichung vom exakten Fresnel bleibt unter {{schlickErr}}.',
+                'Metalle: F₀ ist farbig, es ist ihre Farbe. Im Metalness-Workflow: F₀ = mix(0,04, Albedo, Metalness), und k_d = (1 − F)(1 − Metalness) — ein Metall hat keinen Diffusanteil.',
+                'G, Smith mit Schlick-GGX: G₁(x) = (n·x) / ((n·x)(1 − k) + k), G = G₁(l) · G₁(v). k = (Roughness + 1)² / 8 für direktes Licht, α / 2 für IBL (Karis, 2013).',
+              ],
+            },
+            {
+              type: 'list',
+              items: [
+                'Image Based Lighting: Das Licht kommt aus einer ganzen Umgebungs-Cubemap. Das Integral schrumpft nicht mehr auf einen Term; pro Pixel zu teuer, wird es vorberechnet.',
+                'Diffus: die Irradiance Map, eine Kosinus-Faltung der Umgebung — eine kleine Cubemap (oft 32 × 32 pro Seite), entlang der Normalen gelesen. Neun Kugelflächenfunktions-Koeffizienten (Ramamoorthi und Hanrahan, 2001) leisten dasselbe.',
+                'Spekular: Die „Split Sum“ von Karis teilt das Integral in zwei vorberechnete Faktoren. Zuerst die mit GGX vorgefilterte Umgebung, eine Mipmap-Stufe pro Rauheit, gelesen in Reflexionsrichtung r = reflect(−v, n). Dann die integrierte BRDF, eine 2D-Textur über (n·v, Rauheit), die (A, B) liefert.',
+                'Beim Rendern: spekular = vorgefiltert(r, Rauheit) · (F₀ · A + B). Zwei Texturzugriffe, keine Schleife.',
+              ],
+            },
+            {
+              type: 'diagram',
+              diagram: 'pbrSplitSum',
+              caption:
+                'Die integrierte BRDF, nachgerechnet wie im Code von Karis: {{lutSamples}} GGX-Samples pro Punkt. A skaliert F₀, B kommt hinzu. Rauheit {{lutRough}} bei senkrechter Inzidenz: A + B = {{lutSum}}, fast die ganze Energie kommt zurück.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Näherungen, die man kennen sollte: Die Vorfilterung nimmt n = v = r an, sodass sich Glanzlichter bei streifendem Einfall nicht strecken; und ein Modell mit Einfachstreuung verliert bei hoher Rauheit Energie, ausgeglichen nach Kulla und Conty (2017).',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'questions',
+          kicker: '09',
           title: 'Interviewfragen',
           blocks: [
             {
@@ -3813,13 +4025,17 @@ const raster: NoteDef = {
                 'MSAA oder SSAA? MSAA: Abdeckung pro Sample, Shading pro Pixel. SSAA: alles pro Sample, Kosten mal Sample-Anzahl.',
                 'Forward oder Deferred? Forward: Beleuchtung im Fragment-Shader jedes Objekts. Deferred: Ein Pass schreibt Normalen, Albedo und Tiefe (den G-Buffer), die Beleuchtung folgt pro Pixel — viele Lichter, aber Transparenz und MSAA werden schwieriger.',
                 'Rasterung oder Raytracing? Rasterung: für jedes Dreieck, welche Pixel — zuerst das Objekt. Raytracing: für jedes Pixel, welches Objekt — zuerst das Bild. Der Ray Marcher des Portfolios steht auf dieser Seite.',
+                'Warum Lambert durch π teilen? Damit eine Albedo von 1 genau die empfangene Energie zurückgibt: ∫ cos θ dω = π über die Hemisphäre.',
+                'Die Rolle jedes Cook-Torrance-Terms? D die Form des Glanzlichts, F der reflektierte Anteil je nach Winkel, G die Selbstabschattung; der Nenner kommt aus dem Variablenwechsel von h nach l.',
+                'Warum GGX statt Beckmann oder Blinn-Phong? Sein langer Ausläufer bildet den Halo gemessener Glanzlichter nach.',
+                'Die Split Sum? Das spekulare IBL-Integral, aufgeteilt in vorgefilterte Umgebung × integrierte BRDF: zwei vorberechnete Texturen, zwei Zugriffe beim Rendern.',
               ],
             },
           ],
         },
         {
           id: 'further',
-          kicker: '09',
+          kicker: '10',
           title: 'Weiterführend',
           blocks: [
             {
@@ -3830,6 +4046,10 @@ const raster: NoteDef = {
                 'Juan Pineda, A Parallel Algorithm for Polygon Rasterization (SIGGRAPH 1988) — die Kantenfunktionen.',
                 'Nathan Reed, Depth Precision Visualized (2015) — Reverse-Z, mit Kurven.',
                 'Scratchapixel, Rasterization: a Practical Implementation — ein Software-Rasterizer Schritt für Schritt.',
+                'Robert Cook und Kenneth Torrance, A Reflectance Model for Computer Graphics (1982) — die Mikrofacetten.',
+                'Walter, Marschner, Li und Torrance, Microfacet Models for Refraction through Rough Surfaces (2007) — GGX.',
+                'Brent Burley, Physically-Based Shading at Disney (2012) — α = Roughness² und das „Principled“-Modell.',
+                'Brian Karis, Real Shading in Unreal Engine 4 (2013) — die Split Sum und Schlick-GGX.',
               ],
             },
           ],
@@ -3875,6 +4095,38 @@ const rasterFacts = (): Record<string, Fact> => {
   claim(rasterLib.area2(...scene.t1) !== 0 && rasterLib.area2(...scene.t2) !== 0, 'les deux triangles ne sont pas dégénérés');
   claim(persp.maxError > 0.3, 'l’interpolation affine s’écarte nettement de la correcte');
 
+  // Le chapitre PBR.
+  const alpha = 0.3;
+  const tailDeg = 45;
+  const tail = Math.cos((tailDeg * Math.PI) / 180);
+  const tailRatio = pbrLib.ggx(tail, alpha) / pbrLib.beckmann(tail, alpha);
+  const f0 = pbrLib.f0FromIor(1.5);
+  const schlickErr = pbrLib.schlickMaxError(1.5);
+  const lutRough = 0.25;
+  const [lutA, lutB] = pbrLib.integrateBrdf(1, lutRough, pbrLib.LUT_SAMPLES);
+  // ∫ D(h)(n·h) dω = 1 : une distribution de normales normalisée.
+  const projected = (d: (c: number) => number) => {
+    let sum = 0;
+    const n = 4000;
+    for (let i = 0; i < n; i++) {
+      const t = ((i + 0.5) / n) * (Math.PI / 2);
+      sum += d(Math.cos(t)) * Math.cos(t) * Math.sin(t) * (Math.PI / 2 / n) * 2 * Math.PI;
+    }
+    return sum;
+  };
+  claim(Math.abs(projected((c) => pbrLib.ggx(c, alpha)) - 1) < 1e-3, 'GGX est normalisée');
+  claim(Math.abs(projected((c) => pbrLib.beckmann(c, alpha)) - 1) < 1e-3, 'Beckmann est normalisée');
+  claim(Math.abs(pbrLib.ggx(1, alpha) - pbrLib.beckmann(1, alpha)) < 1e-9, 'GGX et Beckmann ont le même pic à α égal');
+  claim(tailRatio > 100, 'à 45°, GGX dépasse Beckmann de plus de deux ordres de grandeur');
+  claim(Math.abs(f0 - 0.04) < 1e-9 && schlickErr < 0.04, 'F₀ = 0,04 pour n = 1,5, et Schlick reste à moins de 0,04 de Fresnel');
+  claim(lutA + lutB > 0.95 && lutA + lutB <= 1.001, 'en incidence normale et peu rugueux, presque toute l’énergie revient');
+  for (const r of [0.25, 0.5, 1]) {
+    for (const nv of [0.05, 0.3, 0.7, 1]) {
+      const [a, b] = pbrLib.integrateBrdf(nv, r, 256);
+      claim(a >= 0 && b >= 0 && a + b <= 1.02, 'la BRDF intégrée ne crée pas d’énergie');
+    }
+  }
+
   return {
     near,
     far,
@@ -3889,6 +4141,14 @@ const rasterFacts = (): Record<string, Fact> => {
     n1: cells.filter((o) => o === 1).length,
     n2: cells.filter((o) => o === 2).length,
     uvError: Math.round(persp.maxError * 100),
+    alpha,
+    tailDeg,
+    tailRatio: Math.round(tailRatio),
+    f0,
+    schlickErr: fixed(schlickErr, 3),
+    lutSamples: pbrLib.LUT_SAMPLES,
+    lutRough,
+    lutSum: fixed(lutA + lutB, 2),
   };
 };
 
