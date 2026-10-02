@@ -1,0 +1,43 @@
+---
+/**
+ * Chapitre PBR — la distribution des normales. En abscisse l'angle entre la
+ * normale et le vecteur moitié, en ordonnée D(h) (échelle log). GGX et
+ * Beckmann au même α ont le même pic ; c'est la traîne qui les sépare.
+ * Calculé par `src/lib/pbr.ts`.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { beckmann, ggx } from '../../lib/pbr';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const FLOOR = 1e-3;
+const curve = (d: (c: number) => number) =>
+  Array.from({ length: 241 }, (_, i) => (i / 240) * 70)
+    .map((deg) => [deg, d(Math.cos((deg * Math.PI) / 180))] as [number, number])
+    .filter(([, v]) => v >= FLOOR);
+---
+
+<Legend
+  entries={[
+    { key: 'ggx', label: 'GGX, α = 0.3' },
+    { key: 'beck', label: 'Beckmann, α = 0.3', dash: true },
+    { key: 'ggx6', label: 'GGX, α = 0.6' },
+  ]}
+/>
+<div class="plot-grid" data-panels="1">
+  <LinePanel
+    id="pbr-ndf"
+    alt={t('diagram.pbrNdf.alt')}
+    x={{ domain: [0, 70], label: t('diagram.pbr.angle') }}
+    y={{ domain: [FLOOR, 10], log: true, label: 'D(h)' }}
+    series={[
+      { key: 'ggx', points: curve((c) => ggx(c, 0.3)), marker: 'none' },
+      { key: 'beck', points: curve((c) => beckmann(c, 0.3)), dash: true, marker: 'none' },
+      { key: 'ggx6', points: curve((c) => ggx(c, 0.6)), marker: 'none' },
+    ]}
+  />
+</div>

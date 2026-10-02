@@ -44,6 +44,9 @@ export const diagramKeys = [
   'rasterCoverage',
   'rasterPerspective',
   'rasterDepth',
+  // Le chapitre PBR de la même note — calculés depuis `src/lib/pbr.ts`.
+  'pbrNdf',
+  'pbrSplitSum',
 ] as const;
 
 export type DiagramKey = (typeof diagramKeys)[number];

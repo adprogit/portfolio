@@ -50,6 +50,8 @@ import RasterPipeline from './RasterPipeline.astro';
 import RasterCoverage from './RasterCoverage.astro';
 import RasterPerspective from './RasterPerspective.astro';
 import RasterDepth from './RasterDepth.astro';
+import PbrNdf from './PbrNdf.astro';
+import PbrSplitSum from './PbrSplitSum.astro';
 
 interface Props {
   diagram: DiagramKey;
@@ -96,6 +98,8 @@ const components = {
   rasterCoverage: RasterCoverage,
   rasterPerspective: RasterPerspective,
   rasterDepth: RasterDepth,
+  pbrNdf: PbrNdf,
+  pbrSplitSum: PbrSplitSum,
 } satisfies Record<DiagramKey, unknown>;
 
 const Component = components[diagram];

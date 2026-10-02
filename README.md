@@ -78,8 +78,8 @@ par au moins un projet.
 
 Une note explique comment marche un projet : **Du rayon au pixel** (optique de
 rendu, racontée par le code du ray marcher), **Du triangle au pixel** (fiche de
-révision sur la rasterisation et le pipeline OpenGL, chiffres recalculés par
-`src/lib/raster.ts` avec la caméra de POGL), **Méthodes de descente au banc
+révision sur la rasterisation, le pipeline OpenGL et le PBR, chiffres
+recalculés par `src/lib/raster.ts` et `src/lib/pbr.ts`), **Méthodes de descente au banc
 d'essai** (rapport d'optimisation convexe), **U-Net, pièce par pièce** (notes
 de cours en listes et formules ; tailles, paramètres, calcul et champ réceptif
 recalculés par `src/lib/unet.ts`) et **Cel shading, bande par bande** (partie

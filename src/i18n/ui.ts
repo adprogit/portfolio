@@ -158,6 +158,12 @@ const en = {
   'diagram.rasterCoverage.alt': 'A 16 by 11 pixel grid and two triangles sharing an edge that runs through pixel centres. Every centre on that edge is coloured by one triangle only; none is coloured twice and none is left empty.',
   'diagram.rasterPerspective.alt': 'The same checkerboard floor drawn twice with two triangles. Interpolated affinely in screen space, the squares bend and break along the diagonal; interpolated with perspective correction, they stay straight and shrink with distance.',
   'diagram.rasterDepth.alt': 'Stored depth against distance to the camera, far plane at 250, for near planes 0.1, 1 and 10. Each curve climbs almost vertically just after its near plane and spends most of the range there.',
+  'diagram.pbr.angle': 'angle between n and h (°)',
+  'diagram.pbr.roughness': 'roughness',
+  'diagram.pbr.scale': 'A — scale on F₀',
+  'diagram.pbr.bias': 'B — bias',
+  'diagram.pbrNdf.alt': 'Normal distribution D(h) against the angle between normal and half vector, log scale: GGX and Beckmann at alpha 0.3 share the same peak, but Beckmann collapses within 40 degrees while GGX keeps a long tail; GGX at alpha 0.6 is lower and wider.',
+  'diagram.pbrSplitSum.alt': 'Two panels of the integrated BRDF against n·v for roughness 0.25, 0.5 and 1: the scale A rises towards 1 at normal incidence for smooth surfaces and stays lower for rough ones; the bias B is largest at grazing angles and falls to zero at normal incidence.',
 
   'project.contents': 'Contents',
 
@@ -347,6 +353,12 @@ const fr: Dict = {
   'diagram.rasterCoverage.alt': 'Une grille de 16 sur 11 pixels et deux triangles qui partagent une arête passant par des centres de pixel. Chaque centre de cette arête est coloré par un seul triangle ; aucun ne l’est deux fois, aucun ne reste vide.',
   'diagram.rasterPerspective.alt': 'Le même sol en damier dessiné deux fois avec deux triangles. Interpolées de façon affine à l’écran, les cases se courbent et se cassent le long de la diagonale ; corrigées en perspective, elles restent droites et rapetissent avec la distance.',
   'diagram.rasterDepth.alt': 'La profondeur stockée selon la distance à la caméra, plan far à 250, pour des plans near à 0,1, 1 et 10. Chaque courbe monte presque à la verticale juste après son near et y dépense l’essentiel de la plage.',
+  'diagram.pbr.angle': 'angle entre n et h (°)',
+  'diagram.pbr.roughness': 'rugosité',
+  'diagram.pbr.scale': 'A — facteur de F₀',
+  'diagram.pbr.bias': 'B — biais',
+  'diagram.pbrNdf.alt': 'La distribution des normales D(h) selon l’angle entre la normale et le vecteur moitié, en échelle log : GGX et Beckmann à alpha 0,3 ont le même pic, mais Beckmann s’effondre en 40 degrés quand GGX garde une longue traîne ; GGX à alpha 0,6 est plus bas et plus large.',
+  'diagram.pbrSplitSum.alt': 'Deux panneaux de la BRDF intégrée selon n·v pour des rugosités 0,25, 0,5 et 1 : le facteur A monte vers 1 en incidence normale pour les surfaces lisses et reste plus bas pour les rugueuses ; le biais B est maximal aux angles rasants et tombe à zéro en incidence normale.',
 
   'project.contents': 'Au programme',
 
@@ -534,6 +546,12 @@ const de: Dict = {
   'diagram.rasterCoverage.alt': 'Ein Raster aus 16 mal 11 Pixeln und zwei Dreiecke mit einer gemeinsamen Kante durch Pixelzentren. Jedes Zentrum auf dieser Kante ist von genau einem Dreieck gefärbt; keines doppelt, keines leer.',
   'diagram.rasterPerspective.alt': 'Derselbe Schachbrettboden zweimal mit zwei Dreiecken gezeichnet. Affin im Bildraum interpoliert, biegen sich die Felder und brechen an der Diagonale; perspektivisch korrekt bleiben sie gerade und werden mit der Entfernung kleiner.',
   'diagram.rasterDepth.alt': 'Die gespeicherte Tiefe über dem Abstand zur Kamera, Far-Ebene bei 250, für Near-Ebenen 0,1, 1 und 10. Jede Kurve steigt direkt nach ihrer Near-Ebene fast senkrecht an und verbraucht dort den Großteil des Bereichs.',
+  'diagram.pbr.angle': 'Winkel zwischen n und h (°)',
+  'diagram.pbr.roughness': 'Rauheit',
+  'diagram.pbr.scale': 'A — Faktor auf F₀',
+  'diagram.pbr.bias': 'B — Bias',
+  'diagram.pbrNdf.alt': 'Die Normalenverteilung D(h) über dem Winkel zwischen Normale und Halbvektor, logarithmisch: GGX und Beckmann bei Alpha 0,3 haben denselben Gipfel, doch Beckmann bricht innerhalb von 40 Grad ein, während GGX einen langen Ausläufer behält; GGX bei Alpha 0,6 ist niedriger und breiter.',
+  'diagram.pbrSplitSum.alt': 'Zwei Felder der integrierten BRDF über n·v für Rauheiten 0,25, 0,5 und 1: der Faktor A steigt bei glatten Flächen zur senkrechten Inzidenz gegen 1 und bleibt bei rauen niedriger; der Bias B ist bei streifendem Einfall am größten und fällt bei senkrechter Inzidenz auf null.',
 
   'project.contents': 'Inhalt',
 

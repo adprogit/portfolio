@@ -1,0 +1,52 @@
+---
+/**
+ * Chapitre PBR — la BRDF intégrée de la split sum, la texture 2D que l'IBL lit
+ * à chaque pixel. Deux canaux : A multiplie F₀, B s'y ajoute. Chaque point est
+ * une intégrale par échantillonnage d'importance de GGX (`integrateBrdf`,
+ * `src/lib/pbr.ts`), la boucle du code de Karis.
+ */
+import LinePanel from '../plots/LinePanel.astro';
+import Legend from '../plots/Legend.astro';
+import type { Locale } from '../../i18n/config';
+import { useT } from '../../i18n/ui';
+import { integrateBrdf, LUT_SAMPLES } from '../../lib/pbr';
+
+interface Props { lang: Locale }
+const t = useT(Astro.props.lang);
+
+const roughness = [
+  { key: 'r25', r: 0.25 },
+  { key: 'r50', r: 0.5 },
+  { key: 'r100', r: 1 },
+];
+const nvs = Array.from({ length: 33 }, (_, i) => 0.02 + (i / 32) * 0.98);
+const table = roughness.map(({ key, r }) => ({ key, values: nvs.map((nv) => [nv, ...integrateBrdf(nv, r, LUT_SAMPLES)] as const) }));
+const channel = (c: 1 | 2) =>
+  table.map(({ key, values }) => ({ key, points: values.map((v) => [v[0], v[c]] as [number, number]), marker: 'none' as const }));
+---
+
+<Legend
+  entries={[
+    { key: 'r25', label: `${t('diagram.pbr.roughness')} 0.25` },
+    { key: 'r50', label: `${t('diagram.pbr.roughness')} 0.5` },
+    { key: 'r100', label: `${t('diagram.pbr.roughness')} 1` },
+  ]}
+/>
+<div class="plot-grid" data-panels="2">
+  <LinePanel
+    id="pbr-lut-a"
+    title={t('diagram.pbr.scale')}
+    alt={t('diagram.pbrSplitSum.alt')}
+    x={{ domain: [0, 1], label: 'n·v' }}
+    y={{ domain: [0, 1], label: 'A' }}
+    series={channel(1)}
+  />
+  <LinePanel
+    id="pbr-lut-b"
+    title={t('diagram.pbr.bias')}
+    alt={t('diagram.pbrSplitSum.alt')}
+    x={{ domain: [0, 1], label: 'n·v' }}
+    y={{ domain: [0, 0.4], label: 'B' }}
+    series={channel(2)}
+  />
+</div>
