@@ -158,42 +158,12 @@ const notes = getNotes(lang);
 {/* La couture entre les deux écrans — pleine largeur, hors de toute colonne. */}
 <div class="seam" aria-hidden="true"></div>
 
-{/* ── Second écran : les projets, puis les compétences ─────────── */}
+{/* ── Second écran : les projets, les notes, puis les compétences ── */}
 <div class="shell px-5 pb-24 sm:px-8 sm:pb-32">
-  {/* ── Notes ──────────────────────────────────────────────────── */}
-  {/*
-    Le cours d'abord, les projets ensuite : on arrive par ce qui explique, et
-    on descend vers ce qui a été construit avec.
-
-    Ce qui explique plutôt que ce qui montre. Les projets disent ce qui a été
-    construit ; une note dit comment ça marche, avec le code du projet dont
-    elle sort. Même geste de ligne que les projets, mais une autre grille :
-    catégorie, titre, temps de lecture — la table des matières d'un carnet.
-  */}
-  {
-    notes.length > 0 && (
-      /* `panel` : c'est ici que le cran de défilement s'arrête, donc c'est la
-         couture de la bio qu'on voit arriver en haut de l'écran. */
-      <section
-        class="panel pt-14 sm:pt-20"
-        id="notes"
-        data-reveal-group
-        aria-labelledby="notes-title"
-      >
-        <SectionHead id="notes-title" kicker={t('home.notes.kicker')} title={t('home.notes')} />
-        <div class="mt-3">
-          {notes.map((note) => (
-            <div class="reveal">
-              <NoteRow note={note} lang={lang} />
-            </div>
-          ))}
-        </div>
-      </section>
-    )
-  }
-
   {/* ── Projets ────────────────────────────────────────────────── */}
-    <section class="mt-20 scroll-mt-24 sm:mt-28" id="projects" data-reveal-group aria-labelledby="projects-title">
+  {/* `panel` : c'est ici que le cran de défilement s'arrête, donc c'est la
+      couture de la bio qu'on voit arriver en haut de l'écran. */}
+  <section class="panel pt-14 sm:pt-20" id="projects" data-reveal-group aria-labelledby="projects-title">
     <SectionHead
       id="projects-title"
       kicker={t('home.projects.kicker')}
@@ -257,6 +227,36 @@ const notes = getNotes(lang);
       </p>
     </div>
   </section>
+
+  {/* ── Notes ──────────────────────────────────────────────────── */}
+  {/*
+    Les projets d'abord, les notes ensuite : on arrive par ce qui a été
+    construit, et on descend vers ce qui l'explique.
+
+    Ce qui explique plutôt que ce qui montre. Les projets disent ce qui a été
+    construit ; une note dit comment ça marche, avec le code du projet dont
+    elle sort. Même geste de ligne que les projets, mais une autre grille :
+    catégorie, titre, temps de lecture — la table des matières d'un carnet.
+  */}
+  {
+    notes.length > 0 && (
+      <section
+        class="mt-20 scroll-mt-24 sm:mt-28"
+        id="notes"
+        data-reveal-group
+        aria-labelledby="notes-title"
+      >
+        <SectionHead id="notes-title" kicker={t('home.notes.kicker')} title={t('home.notes')} />
+        <div class="mt-3">
+          {notes.map((note) => (
+            <div class="reveal">
+              <NoteRow note={note} lang={lang} />
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   {/* ── Compétences, en annexe ─────────────────────────────────── */}
   {/*
