@@ -204,8 +204,8 @@ const notes = getNotes(lang);
             </h3>
 
             {/* Des cartes, de gauche à droite puis de haut en bas : deux de
-                front sur téléphone, quatre sur écran large — les familles
-                comptent 4, 4 et 2 projets, donc aucune rangée n'a de trou. */}
+                front sur téléphone, quatre sur écran large. Une famille qui
+                ne tombe pas juste laisse sa dernière rangée incomplète. */}
             <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-8 sm:gap-x-5 lg:grid-cols-4">
               {group.projects.map((project) => (
                 <div data-tags={project.tags.join(' ')}>

@@ -1,7 +1,7 @@
 # Portfolio
 
 Site statique en trois langues (en, fr, de) : on y arrive depuis un CV, on y lit
-onze projets et cinq notes de cours, on repart. Astro 7 + Tailwind 4, aucune
+treize projets et cinq notes de cours, on repart. Astro 7 + Tailwind 4, aucune
 dépendance JavaScript à l'exécution, et un échiquier rendu en direct par WebGPU
 sur la page du ray marcher.
 
@@ -59,7 +59,8 @@ les mêmes clés, TypeScript le vérifie. L'anglais n'a pas de préfixe d'URL
 
 Blocs disponibles dans une section : `text`, `list`, `code`, `media`, `video`,
 `chart`, `live` (l'échiquier). Aucune année, nulle part ; un projet en cours
-porte `status: 'wip'`.
+porte `status: 'wip'`. La couverture (`cover`) est facultative : elle ne sert
+que d'image de partage, et un projet sans visuel publiable s'en passe.
 
 Sur l'accueil, chaque projet est une carte avec un **sprite en pixels**
 (32 × 32, 16 images) qui rejoue ce qu'il fait. Les scènes sont calculées dans

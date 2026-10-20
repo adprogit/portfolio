@@ -55,7 +55,8 @@ const alternates = locales.map((locale) => ({
   href: translatePath(Astro.url.pathname, locale),
 }));
 
-const ogSource = image ?? getProjects(lang)[0].cover.image;
+// L'image de partage par défaut : la couverture du premier projet qui en a une.
+const ogSource = image ?? getProjects(lang).find((p) => p.cover)!.cover!.image;
 const ogImage = await getImage({ src: ogSource, width: 1200, format: 'webp', quality: 80 });
 
 /*
