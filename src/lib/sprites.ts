@@ -314,6 +314,123 @@ function itkVtk(): Sprite {
   };
 }
 
+function bacAGolf(): Sprite {
+  // La table vue d'en haut : le parcours projeté, le départ, le trou et son
+  // drapeau, et le bumper rond au milieu. La balle part du départ, frappe le
+  // bumper, repart en miroir de son angle d'arrivée — la même réflexion que
+  // dans le jeu — et finit dans le trou.
+  const tee = { x: 6, y: 24 };
+  const bumper = { x: 17, y: 13, r: 3 };
+  const hole = { x: 26, y: 23 };
+  const base = new Layer(SIZE);
+  base.frame(1, 3, 30, 26, 'l');
+  // Le relief projeté : quelques lignes de niveau tramées, comme la palette
+  // de hauteur que le projecteur dessine sur la table.
+  for (let y = 4; y < 28; y++) {
+    for (let x = 2; x < 30; x++) {
+      const h = Math.sin(x * 0.35) * Math.cos(y * 0.3) + 0.4 * Math.sin((x + y) * 0.2);
+      if (Math.abs(h % 0.5) < 0.06 && dither(x, y, 0.6)) base.set(x, y, 'r');
+    }
+  }
+  base.circle(bumper.x, bumper.y, bumper.r, 'i').disc(bumper.x, bumper.y, 1, 'i');
+  base.disc(hole.x, hole.y, 1.4, 'i');
+  base.line(hole.x + 1, hole.y - 1, hole.x + 1, hole.y - 8, 'i');
+  base.rect(hole.x + 2, hole.y - 8, 3, 2, 'i');
+  base.rect(tee.x - 1, tee.y, 3, 1, 'l');
+
+  // Trajet : départ → contact sur le bumper → réflexion → trou. Le point de
+  // contact est cherché sur le cercle pour que la réflexion miroir,
+  // out = in − 2 (in·n) n comme `Vector3.bounce` dans le jeu, vise le trou.
+  const R = bumper.r + 0.5;
+  let contact = { x: bumper.x, y: bumper.y + R };
+  let best = Infinity;
+  for (let k = 0; k < 720; k++) {
+    const phi = (k / 720) * 2 * Math.PI;
+    const n = [Math.cos(phi), Math.sin(phi)];
+    const c = { x: bumper.x + R * n[0]!, y: bumper.y + R * n[1]! };
+    const inc = [c.x - tee.x, c.y - tee.y];
+    const dot = inc[0]! * n[0]! + inc[1]! * n[1]!;
+    if (dot >= 0) continue; // la balle doit arriver sur la face visible
+    const out = [inc[0]! - 2 * dot * n[0]!, inc[1]! - 2 * dot * n[1]!];
+    const toHole = [hole.x - c.x, hole.y - c.y];
+    const cross = Math.abs(out[0]! * toHole[1]! - out[1]! * toHole[0]!) / (Math.hypot(...out) * Math.hypot(...toHole));
+    const ahead = out[0]! * toHole[0]! + out[1]! * toHole[1]! > 0;
+    if (ahead && cross < best) {
+      best = cross;
+      contact = c;
+    }
+  }
+  const lerp = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  });
+  const ballAt = (f: number) => (f < 7 ? lerp(tee, contact, f / 7) : lerp(contact, hole, Math.min(1, (f - 7) / 7)));
+  return {
+    size: SIZE,
+    base,
+    frames: frames((layer, f) => {
+      for (let k = Math.max(0, f - 3); k < f; k++) {
+        const p = ballAt(k);
+        layer.set(p.x, p.y, 'l');
+      }
+      const p = ballAt(f);
+      layer.disc(p.x, p.y, 1, 'a');
+      // Le bumper s'illumine au choc, puis le trou à l'arrivée.
+      if (f === 7 || f === 8) layer.circle(bumper.x, bumper.y, bumper.r, 'a').circle(bumper.x, bumper.y, bumper.r + 1.5, 'a');
+      if (f >= 14) layer.disc(hole.x, hole.y, 1.4, 'a').rect(hole.x + 2, hole.y - 8, 3, 2, 'a');
+    }),
+  };
+}
+
+function gaussianSplatting(): Sprite {
+  // Des gaussiennes 3D projetées en ellipses, d'orientations et de tailles
+  // différentes, composées l'une après l'autre dans l'ordre de profondeur :
+  // la forme naît de leur accumulation, tramée comme une opacité.
+  const rand = (k: number) => {
+    const s = Math.sin(k * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const splats = Array.from({ length: 22 }, (_, k) => {
+    const a = rand(k) * Math.PI * 2;
+    const r = 4 + rand(k + 50) * 8;
+    return {
+      x: 16 + Math.cos(a) * r * 0.9,
+      y: 16 + Math.sin(a) * r * 0.6,
+      sx: 2 + rand(k + 100) * 3.5,
+      sy: 1 + rand(k + 150) * 1.6,
+      theta: rand(k + 200) * Math.PI,
+      depth: rand(k + 250),
+    };
+  }).sort((p, q) => q.depth - p.depth);
+  const weight = (s: (typeof splats)[number], x: number, y: number) => {
+    const [dx, dy] = [x - s.x, y - s.y];
+    const [c, sn] = [Math.cos(s.theta), Math.sin(s.theta)];
+    const u = (c * dx + sn * dy) / s.sx;
+    const v = (-sn * dx + c * dy) / s.sy;
+    return Math.exp(-0.5 * (u * u + v * v));
+  };
+  const base = new Layer(SIZE);
+  base.frame(1, 1, 30, 30, 'r');
+  return {
+    size: SIZE,
+    base,
+    frames: frames((layer, f) => {
+      const shown = splats.slice(0, Math.round(((f + 1) / FRAMES) * splats.length));
+      for (let y = 2; y < 30; y++) {
+        for (let x = 2; x < 30; x++) {
+          // Composition alpha : T = Π (1 − αᵢ), l'opacité accumulée vaut 1 − T.
+          let transmit = 1;
+          for (const s of shown) transmit *= 1 - 0.75 * weight(s, x, y);
+          const alpha = 1 - transmit;
+          if (dither(x, y, alpha)) layer.set(x, y, alpha > 0.85 ? 'a' : alpha > 0.45 ? 'i' : 'l');
+        }
+      }
+      const last = shown.at(-1);
+      if (last && f < FRAMES - 1) layer.set(last.x, last.y, 'a');
+    }),
+  };
+}
+
 function unet(): Sprite {
   // L'image, puis le masque qui s'affine comme remonte le décodeur : blocs de
   // 8, de 4, de 2, puis au pixel — la résolution de chaque niveau.
@@ -494,8 +611,10 @@ export const sprites: Record<string, () => Sprite> = {
   toongl,
   'cuda-motion': cudaMotion,
   'neural-texture': neuralTexture,
+  'gaussian-splatting': gaussianSplatting,
   pulmonix,
   'itk-vtk': itkVtk,
+  'bac-a-golf': bacAGolf,
   'unet-coco': unet,
   'automata-vision': automata,
   'raiders-sudoku': sudoku,

@@ -184,7 +184,7 @@ const en = {
 
   'chess.live': 'live',
   'chess.canvas': 'Live render: a chess position ray marched in the browser, from the same distance fields and the same lighting as the C++ project.',
-  'chess.caption': 'Every position is ray marched from scratch. Stepping through a move rewrites two buffers — the 32 pieces and the 64 grid cells — and asks for one more frame. Drop a PGN file on the board, or load one, to replay your own game: it is read in the browser and sent nowhere.',
+  'chess.caption': 'Every position is ray marched from scratch. Stepping through a move rewrites two buffers — the 32 pieces and the 64 grid cells — and restarts the refinement: each frame adds one sample per pixel, up to sixteen. Drop a PGN file on the board, or load one, to replay your own game: it is read in the browser and sent nowhere.',
   'chess.loading': 'Loading the renderer…',
   'chess.unsupported': 'This render needs WebGPU, which this browser does not offer. The rest of the page does not depend on it.',
   'chess.failed': 'WebGPU is here, but the render could not start on this device. The rest of the page does not depend on it.',
@@ -379,7 +379,7 @@ const fr: Dict = {
 
   'chess.live': 'en direct',
   'chess.canvas': "Rendu en direct : une position d’échecs calculée par ray marching dans le navigateur, à partir des mêmes champs de distance et du même éclairage que le projet C++.",
-  'chess.caption': "Chaque position est ray marchée depuis zéro. Avancer d’un coup réécrit deux tampons — les 32 pièces et les 64 cases de la grille — et redemande une image. Déposez un fichier PGN sur l’échiquier, ou chargez-en un, pour rejouer votre partie : il est lu dans le navigateur et n’est envoyé nulle part.",
+  'chess.caption': "Chaque position est ray marchée depuis zéro. Avancer d’un coup réécrit deux tampons — les 32 pièces et les 64 cases de la grille — et relance l’affinage : chaque image ajoute un échantillon par pixel, jusqu’à seize. Déposez un fichier PGN sur l’échiquier, ou chargez-en un, pour rejouer votre partie : il est lu dans le navigateur et n’est envoyé nulle part.",
   'chess.loading': 'Chargement du rendu…',
   'chess.unsupported': "Ce rendu demande WebGPU, que ce navigateur ne propose pas. Le reste de la page n’en dépend pas.",
   'chess.failed': "WebGPU est là, mais le rendu n’a pas pu démarrer sur cet appareil. Le reste de la page n’en dépend pas.",
@@ -572,7 +572,7 @@ const de: Dict = {
 
   'chess.live': 'live',
   'chess.canvas': 'Live-Rendering: eine Schachstellung, im Browser per Ray Marching berechnet — aus denselben Distanzfeldern und derselben Beleuchtung wie im C++-Projekt.',
-  'chess.caption': 'Jede Stellung wird von Grund auf ray-marched. Ein Zug weiter schreibt zwei Puffer neu — die 32 Figuren und die 64 Rasterfelder — und fordert ein weiteres Bild an. Eine PGN-Datei aufs Brett ziehen oder laden, um die eigene Partie nachzuspielen: Sie wird im Browser gelesen und nirgendwohin geschickt.',
+  'chess.caption': 'Jede Stellung wird von Grund auf ray-marched. Ein Zug weiter schreibt zwei Puffer neu — die 32 Figuren und die 64 Rasterfelder — und startet die Verfeinerung neu: Jedes Bild fügt ein Sample pro Pixel hinzu, bis zu sechzehn. Eine PGN-Datei aufs Brett ziehen oder laden, um die eigene Partie nachzuspielen: Sie wird im Browser gelesen und nirgendwohin geschickt.',
   'chess.loading': 'Renderer wird geladen…',
   'chess.unsupported': 'Dieses Rendering braucht WebGPU, das dieser Browser nicht anbietet. Der Rest der Seite hängt nicht davon ab.',
   'chess.failed': 'WebGPU ist da, aber das Rendering konnte auf diesem Gerät nicht starten. Der Rest der Seite hängt nicht davon ab.',

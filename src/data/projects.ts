@@ -973,6 +973,29 @@ M(3, 1) = 0.0f;
 M(3, 2) = -1.0f;
 M(3, 3) = 0.0f;`,
   },
+  bacBumper: {
+    lang: 'gdscript',
+    source: 'bac-a-golf/godot/ball/ball.gd:140',
+    code: `func _bounce_off_bumper(state: PhysicsDirectBodyState3D) -> void:
+	var incoming := _last_velocity
+	_last_velocity = state.linear_velocity
+	for i in state.get_contact_count():
+		var bumper := state.get_contact_collider_object(i) as Bumper
+		if bumper == null:
+			continue
+		var normal := state.get_contact_local_normal(i)
+		if incoming.dot(normal) >= 0.0:
+			continue  # la balle s'eloigne deja : rebond deja traite
+		var out := incoming.bounce(normal)
+		out.y = 0.0
+		state.linear_velocity = out.normalized() * bumper.speed
+		# Rotation de roulement accordee a la nouvelle direction, sinon l'effet
+		# d'arrivee devie la balle au contact du sol.
+		state.angular_velocity = Vector3.UP.cross(state.linear_velocity) / get_radius()
+		_last_velocity = state.linear_velocity
+		bumper.hit()
+		return`,
+  },
 } as const;
 
 export type SnippetKey = keyof typeof snippets;
@@ -1121,8 +1144,12 @@ interface ProjectDef {
   repo?: string;
   shots: Record<string, Shot>;
   clips?: Record<string, Clip>;
-  /** Clé du visuel de couverture (toujours une image). */
-  cover: string;
+  /**
+   * Clé du visuel de couverture (toujours une image). Elle ne sert que
+   * d’image de partage : un projet sans visuel encore publiable s’en passe,
+   * et sa page reprend alors l’image de partage du site.
+   */
+  cover?: string;
   /**
    * Clé d’une vidéo qui ouvre la page projet à la place de la couverture.
    * La couverture, elle, reste l’image de partage (`og:image`).
@@ -1271,7 +1298,7 @@ const raymarcher: ProjectDef = {
             {
               type: 'text',
               content:
-                'Below, that engine runs in your browser. The six distance fields, the 8×8 grid, Blinn-Phong and the soft shadows were ported to WGSL line by line — same formulas, same constants. What takes the CPU minutes takes the GPU one frame, so the game can be stepped through move by move.',
+                'Below, that engine runs in your browser. The six distance fields, the 8×8 grid, Blinn-Phong and the soft shadows were ported to WGSL line by line — same formulas, same constants. What takes the CPU minutes takes the GPU a handful of frames, sixteen samples per pixel included, so the game can be stepped through move by move.',
             },
             { type: 'live' },
           ],
@@ -1396,7 +1423,7 @@ const raymarcher: ProjectDef = {
             {
               type: 'text',
               content:
-                "Ci-dessous, ce moteur tourne dans votre navigateur. Les six champs de distance, la grille 8×8, le Blinn-Phong et les ombres douces ont été portés en WGSL ligne à ligne — mêmes formules, mêmes constantes. Ce qui prend des minutes au processeur prend une image au GPU : la partie se parcourt coup par coup.",
+                "Ci-dessous, ce moteur tourne dans votre navigateur. Les six champs de distance, la grille 8×8, le Blinn-Phong et les ombres douces ont été portés en WGSL ligne à ligne — mêmes formules, mêmes constantes. Ce qui prend des minutes au processeur prend quelques images au GPU, seize échantillons par pixel compris : la partie se parcourt coup par coup.",
             },
             { type: 'live' },
           ],
@@ -1521,7 +1548,7 @@ const raymarcher: ProjectDef = {
             {
               type: 'text',
               content:
-                'Unten läuft genau diese Engine im Browser. Die sechs Distanzfelder, das 8×8-Gitter, Blinn-Phong und die weichen Schatten wurden Zeile für Zeile nach WGSL portiert — dieselben Formeln, dieselben Konstanten. Was die CPU Minuten kostet, kostet die GPU ein Bild: die Partie lässt sich Zug für Zug durchgehen.',
+                'Unten läuft genau diese Engine im Browser. Die sechs Distanzfelder, das 8×8-Gitter, Blinn-Phong und die weichen Schatten wurden Zeile für Zeile nach WGSL portiert — dieselben Formeln, dieselben Konstanten. Was die CPU Minuten kostet, kostet die GPU eine Handvoll Bilder, sechzehn Samples pro Pixel inklusive: die Partie lässt sich Zug für Zug durchgehen.',
             },
             { type: 'live' },
           ],
@@ -5304,6 +5331,348 @@ const itkVtk: ProjectDef = {
   },
 };
 
+const bacAGolf: ProjectDef = {
+  slug: 'bac-a-golf',
+  category: 'vision',
+  title: 'Bac à golf',
+  tone: 'green',
+  tech: ['Godot', 'GDScript', 'C++', 'GDExtension', 'Kinect', 'ArUco'],
+  tags: ['cpp', 'vision'],
+  shots: {},
+  gallery: [],
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      tagline: 'Mini golf projected onto a real table: aim by pinching the air, and the ball bounces off the blocks you put down',
+      description:
+        'A one-week team project: a Kinect above a tray, a projector drawing the course onto it, and a Godot game that reads depth to follow hands, blocks and markers on the table. My part: the gameplay — bumper, animated tutorial, shot feedback, sound.',
+      shots: {},
+      sections: [
+        {
+          id: 'setup',
+          kicker: '01',
+          title: 'The set-up',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'A Kinect and a projector hung above a tray. The game, in Godot, renders into a viewport that a homography warps so it lands exactly on the table.',
+                'Automatic calibration: the projector lights a dot on each corner of the course in turn, the colour camera finds it, and the four positions give the play area — kept from one session to the next.',
+                'Aiming without a mouse: a pinch above the table is found in the depth image. Following Wilson (UIST 2006), the fingers are never tracked: when thumb and index touch, the hand’s silhouette closes and a hole appears in it.',
+                'The real world comes into the game: blocks put down by hand become walls (minimum-area rectangle, same orientation), and three ArUco markers move the tee, the hole and the bumper live.',
+                'C++ (GDExtension) for pinch and ArUco detection; GDScript for the rest.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'mine',
+          kicker: '02',
+          title: 'My part: the gameplay',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Seven people, one week. Detection, calibration and object tracking come from the team; I wrote what happens once the ball is moving.',
+            },
+            {
+              type: 'list',
+              items: [
+                'The bumper: a round obstacle that sends the ball back at a fixed speed, exit angle mirroring the angle of arrival, with a shader, a sound and a short animation.',
+                'The animated pinch tutorial: a hand pinches beside the ball, pulls back, lets go, and the ball shoots the other way. It fades at the first detected gesture and comes back after a while with no player.',
+                'Shot feedback (“oomph”) while aiming, the bouncing wall in the middle of the course, ball and impact sounds, background music and applause at the hole.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'bacBumper',
+              caption:
+                'The bumper bounce. The incoming velocity is the previous step’s — on contact the engine has already changed it — reflected on the normal, flattened and set to the bumper’s speed. The rolling spin is re-aligned with the new direction: without it, the ball’s spin pulled it off course on the ground.',
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      tagline: 'Un mini-golf projeté sur une vraie table : on vise en pinçant l’air, la balle rebondit sur les cubes qu’on pose',
+      description:
+        'Projet d’équipe d’une semaine : une Kinect au-dessus d’un bac, un vidéoprojecteur qui y dessine le parcours, et un jeu Godot qui lit la profondeur pour suivre les mains, les cubes et des marqueurs posés sur la table. Ma part : le gameplay — bumper, tutoriel animé, retours de tir, sons.',
+      shots: {},
+      sections: [
+        {
+          id: 'setup',
+          kicker: '01',
+          title: 'Le dispositif',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Une Kinect et un vidéoprojecteur accrochés au-dessus d’un bac. Le jeu, sous Godot, est rendu dans un viewport qu’une homographie déforme pour qu’il tombe pile sur la table.',
+                'Calibration automatique : le projecteur allume tour à tour un point sur chaque coin du terrain, la caméra couleur le retrouve, et les quatre positions donnent la zone de jeu — gardée d’une séance à l’autre.',
+                'Viser sans souris : un pincement au-dessus de la table est repéré dans l’image de profondeur. Comme chez Wilson (UIST 2006), on ne suit jamais les doigts : quand le pouce et l’index se touchent, la silhouette de la main se referme et un trou y apparaît.',
+                'Le monde réel entre dans le jeu : les cubes posés à la main deviennent des murs (rectangle d’aire minimale, même orientation), et trois marqueurs ArUco déplacent en direct le départ, le trou et le bumper.',
+                'Du C++ (GDExtension) pour la détection du pincement et des marqueurs ; du GDScript pour le reste.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'mine',
+          kicker: '02',
+          title: 'Ma part : le gameplay',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Sept personnes, une semaine. La détection, la calibration et le suivi des objets viennent de l’équipe ; j’ai écrit ce qui se passe une fois la balle partie.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Le bumper : un obstacle rond qui renvoie la balle à vitesse fixe, angle de sortie symétrique de l’angle d’arrivée, avec un shader, un son et une petite animation.',
+                'Le tutoriel animé du pincement : une main pince à côté de la balle, tire, relâche, et la balle part à l’opposé. Il s’efface au premier geste détecté et revient après un moment sans joueur.',
+                'Le retour du tir (« oomph ») pendant la visée, le mur rebondissant au centre du terrain, les sons de balle et d’impact, la musique de fond et les applaudissements au trou.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'bacBumper',
+              caption:
+                'Le rebond du bumper. La vitesse d’arrivée est celle du pas précédent — au contact, le moteur l’a déjà modifiée —, réfléchie sur la normale, remise à plat et portée à la vitesse du bumper. La rotation de roulement est recalée sur la nouvelle direction : sans elle, l’effet de la balle la faisait dévier au contact du sol.',
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      tagline: 'Minigolf auf einen echten Tisch projiziert: Man zielt mit einem Kneifen in der Luft, der Ball prallt an den Klötzen ab, die man hinlegt',
+      description:
+        'Ein einwöchiges Teamprojekt: eine Kinect über einer Wanne, ein Projektor, der den Parcours darauf zeichnet, und ein Godot-Spiel, das die Tiefe liest, um Hände, Klötze und Marker auf dem Tisch zu verfolgen. Mein Teil: das Gameplay — Bumper, animiertes Tutorial, Schuss-Feedback, Ton.',
+      shots: {},
+      sections: [
+        {
+          id: 'setup',
+          kicker: '01',
+          title: 'Der Aufbau',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Eine Kinect und ein Projektor über einer Wanne. Das Spiel rendert in Godot in einen Viewport, den eine Homographie so verzerrt, dass er genau auf dem Tisch landet.',
+                'Automatische Kalibrierung: Der Projektor beleuchtet nacheinander einen Punkt an jeder Ecke des Platzes, die Farbkamera findet ihn, und die vier Positionen ergeben die Spielfläche — sie bleibt von Sitzung zu Sitzung erhalten.',
+                'Zielen ohne Maus: Ein Kneifen über dem Tisch wird im Tiefenbild erkannt. Wie bei Wilson (UIST 2006) werden die Finger nie verfolgt: Wenn sich Daumen und Zeigefinger berühren, schließt sich die Silhouette der Hand und es entsteht ein Loch darin.',
+                'Die reale Welt kommt ins Spiel: Von Hand gelegte Klötze werden zu Wänden (Rechteck minimaler Fläche, gleiche Ausrichtung), und drei ArUco-Marker verschieben Abschlag, Loch und Bumper live.',
+                'C++ (GDExtension) für die Erkennung von Kneifen und Markern; GDScript für den Rest.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'mine',
+          kicker: '02',
+          title: 'Mein Teil: das Gameplay',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'Sieben Personen, eine Woche. Erkennung, Kalibrierung und Objektverfolgung kommen aus dem Team; ich habe geschrieben, was passiert, sobald der Ball rollt.',
+            },
+            {
+              type: 'list',
+              items: [
+                'Der Bumper: ein rundes Hindernis, das den Ball mit fester Geschwindigkeit zurückschickt, Ausfallswinkel gleich Einfallswinkel, mit Shader, Ton und kleiner Animation.',
+                'Das animierte Kneif-Tutorial: Eine Hand kneift neben dem Ball, zieht zurück, lässt los, und der Ball fliegt in die Gegenrichtung. Es verschwindet bei der ersten erkannten Geste und kehrt nach einer Weile ohne Spieler zurück.',
+                'Das Schuss-Feedback („Oomph“) beim Zielen, die federnde Wand in der Mitte des Platzes, Ball- und Aufprallgeräusche, Hintergrundmusik und Applaus am Loch.',
+              ],
+            },
+            {
+              type: 'code',
+              snippet: 'bacBumper',
+              caption:
+                'Der Abprall am Bumper. Die Eintrittsgeschwindigkeit ist die des vorigen Schritts — beim Kontakt hat die Engine sie schon verändert —, an der Normalen gespiegelt, flach gemacht und auf die Bumper-Geschwindigkeit gesetzt. Der Rolldrall wird auf die neue Richtung ausgerichtet: Ohne ihn lenkte der Drall den Ball am Boden ab.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+const gaussianSplatting: ProjectDef = {
+  slug: 'gaussian-splatting',
+  category: 'rendering',
+  title: 'Gaussian Splatting',
+  tone: 'pink',
+  status: 'wip',
+  tech: ['OpenGL', 'GLSL'],
+  tags: ['rendering', 'gpu'],
+  shots: {},
+  gallery: [],
+
+  text: {
+    /* ── English ─────────────────────────────────────────────────── */
+    en: {
+      tagline: 'A Gaussian splatting renderer in OpenGL — in progress',
+      description:
+        'Rendering a 3DGS scene in real time: millions of 3D Gaussians projected, sorted and blended on screen, through a hand-written OpenGL pipeline. Far from finished; this page describes the path, not the result yet.',
+      shots: {},
+      sections: [
+        {
+          id: 'principle',
+          kicker: '01',
+          title: 'The idea',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                '3D Gaussian Splatting (Kerbl et al., 2023): a scene is no longer a mesh but a cloud of 3D Gaussians — a position, a covariance (scale and rotation), an opacity and a view-dependent colour (spherical harmonics).',
+                'Rendering: each Gaussian is projected to a 2D ellipse (covariance Σ′ = J W Σ Wᵀ Jᵀ, J the Jacobian of the projection), sorted by depth, then composited in order.',
+                'No ray tracing and no network at render time: quads and alpha blending, which is what a GPU does best.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'opengl',
+          kicker: '02',
+          title: 'What OpenGL asks for',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Sorting: millions of Gaussians to sort by depth whenever the camera moves — on the GPU (a radix sort in a compute shader) or on the CPU, accepting a sort one frame late.',
+                'Blending: one quad per Gaussian, the ellipse evaluated in the fragment shader, and the compositing order that fixes the choice of blend functions.',
+                'Memory: position, covariance, opacity and 48 spherical-harmonic coefficients per Gaussian; how they are packed into buffers decides the bandwidth.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'status',
+          kicker: '03',
+          title: 'Where it stands',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'In progress, and far from finished. Code, captures and measurements will land here once they have something to say.',
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Français ────────────────────────────────────────────────── */
+    fr: {
+      tagline: 'Un rendu de Gaussian splatting en OpenGL — en cours',
+      description:
+        'Afficher en temps réel une scène 3DGS : des millions de gaussiennes 3D projetées, triées et mélangées à l’écran, dans un pipeline OpenGL écrit à la main. Le projet est loin d’être fini ; cette page dit le chemin, pas encore le résultat.',
+      shots: {},
+      sections: [
+        {
+          id: 'principle',
+          kicker: '01',
+          title: 'Le principe',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                '3D Gaussian Splatting (Kerbl et al., 2023) : une scène n’est plus un maillage mais un nuage de gaussiennes 3D — une position, une covariance (échelle et rotation), une opacité et une couleur qui dépend de la vue (harmoniques sphériques).',
+                'Rendu : chaque gaussienne est projetée en ellipse 2D (covariance Σ′ = J W Σ Wᵀ Jᵀ, J la jacobienne de la projection), triée par profondeur, puis composée dans l’ordre.',
+                'Ni lancer de rayons ni réseau au rendu : des quads et du mélange alpha, ce qu’un GPU fait le mieux.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'opengl',
+          kicker: '02',
+          title: 'Ce que demande OpenGL',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Le tri : des millions de gaussiennes à trier par profondeur à chaque mouvement de caméra — sur le GPU (tri radix en compute shader) ou sur le CPU, en acceptant un tri en retard d’une image.',
+                'Le mélange : un quad par gaussienne, l’ellipse évaluée dans le fragment shader, et l’ordre de composition qui fixe le choix des fonctions de mélange.',
+                'La mémoire : position, covariance, opacité et 48 coefficients d’harmoniques sphériques par gaussienne ; leur rangement dans les tampons décide de la bande passante.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'status',
+          kicker: '03',
+          title: 'Où il en est',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'En cours, et loin d’être fini. Le code, des captures et des mesures viendront ici quand ils auront quelque chose à dire.',
+            },
+          ],
+        },
+      ],
+    },
+
+    /* ── Deutsch ─────────────────────────────────────────────────── */
+    de: {
+      tagline: 'Ein Gaussian-Splatting-Renderer in OpenGL — in Arbeit',
+      description:
+        'Eine 3DGS-Szene in Echtzeit darstellen: Millionen 3D-Gaußfunktionen, projiziert, sortiert und am Bildschirm gemischt, in einer handgeschriebenen OpenGL-Pipeline. Noch lange nicht fertig; diese Seite beschreibt den Weg, noch nicht das Ergebnis.',
+      shots: {},
+      sections: [
+        {
+          id: 'principle',
+          kicker: '01',
+          title: 'Das Prinzip',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                '3D Gaussian Splatting (Kerbl et al., 2023): Eine Szene ist kein Mesh mehr, sondern eine Wolke aus 3D-Gaußfunktionen — Position, Kovarianz (Skalierung und Rotation), Deckkraft und eine blickabhängige Farbe (Kugelflächenfunktionen).',
+                'Rendering: Jede Gaußfunktion wird zu einer 2D-Ellipse projiziert (Kovarianz Σ′ = J W Σ Wᵀ Jᵀ, J die Jacobi-Matrix der Projektion), nach Tiefe sortiert und dann der Reihe nach zusammengesetzt.',
+                'Kein Raytracing und kein Netzwerk beim Rendern: Quads und Alpha-Blending — das, was eine GPU am besten kann.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'opengl',
+          kicker: '02',
+          title: 'Was OpenGL verlangt',
+          blocks: [
+            {
+              type: 'list',
+              items: [
+                'Sortieren: Millionen Gaußfunktionen bei jeder Kamerabewegung nach Tiefe sortieren — auf der GPU (Radix-Sort im Compute-Shader) oder auf der CPU, mit einer Sortierung, die einen Frame hinterherhinkt.',
+                'Blending: ein Quad pro Gaußfunktion, die Ellipse im Fragment-Shader ausgewertet, und die Reihenfolge der Komposition, die die Wahl der Blend-Funktionen festlegt.',
+                'Speicher: Position, Kovarianz, Deckkraft und 48 Kugelflächenfunktions-Koeffizienten pro Gaußfunktion; wie sie in Puffern liegen, entscheidet über die Bandbreite.',
+              ],
+            },
+          ],
+        },
+        {
+          id: 'status',
+          kicker: '03',
+          title: 'Stand',
+          blocks: [
+            {
+              type: 'text',
+              content:
+                'In Arbeit und noch lange nicht fertig. Code, Aufnahmen und Messungen kommen hierher, sobald sie etwas zu sagen haben.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 const definitions: ProjectDef[] = [
   /*
    * L'ordre d'affichage, et sa seule source. Les projets sortent d'ici tels
@@ -5318,11 +5687,13 @@ const definitions: ProjectDef[] = [
   raymarcher,
   toongl,
   cudaMotion,
-  neuralTexture, // en cours : il ferme la marche
+  neuralTexture, // en cours
+  gaussianSplatting, // en cours, le plus loin d'être fini : il ferme la marche
 
   // Vision & imagerie
   pulmonix,
   itkVtk,
+  bacAGolf,
   unet,
   automata,
   sudoku,
@@ -5386,7 +5757,7 @@ export interface ResolvedProject {
   repo?: string;
   tagline: string;
   description: string;
-  cover: ResolvedShot;
+  cover?: ResolvedShot;
   /** Vidéo d’ouverture de la page projet, si le projet en a une. */
   lead?: ResolvedClip;
   gallery: ResolvedShot[];
@@ -5472,7 +5843,7 @@ function resolveProject(def: ProjectDef, locale: Locale): ResolvedProject {
     repo: def.repo,
     tagline: text.tagline,
     description: text.description,
-    cover: resolveShot(def, def.cover, locale),
+    cover: def.cover ? resolveShot(def, def.cover, locale) : undefined,
     lead: def.leadClip ? resolveClip(def, def.leadClip, locale) : undefined,
     gallery: def.gallery.map((key) => resolveShot(def, key, locale)),
     sections: text.sections.map((section) => ({

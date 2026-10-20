@@ -22,7 +22,7 @@ const { project } = Astro.props as { project: ResolvedProject };
   back
   title={`${project.title} · ${project.tagline}`}
   description={project.description}
-  image={project.cover.image}
+  image={project.cover?.image}
 >
   <ProjectBody project={project} lang={defaultLocale} />
 </BaseLayout>
