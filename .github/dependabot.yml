@@ -1,0 +1,28 @@
+# Mises à jour de sécurité et de versions, proposées en pull request.
+#
+# Deux écosystèmes : les paquets npm (lockfile figé, `save-exact`) et les
+# actions GitHub, épinglées par empreinte de commit — Dependabot met à jour
+# l'empreinte et le commentaire de version ensemble.
+#
+# Les PR de versions sont groupées pour ne pas noyer le dépôt ; les PR de
+# sécurité, elles, arrivent dès qu'un avis est publié, indépendamment de ce
+# calendrier (à condition que les alertes Dependabot soient activées dans
+# Settings → Code security).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
