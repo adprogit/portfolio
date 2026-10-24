@@ -20,3 +20,25 @@ node_modules/
 # éditeurs
 .vscode/
 .idea/
+
+# secrets et identifiants — ne jamais commiter
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*.keystore
+credentials*.json
+service-account*.json
+.npmrc.local
+
+# configuration locale
+*.local
+.env.local
+
+# données brutes, dumps et sorties de notebooks
+*.sql
+*.dump
+*.sqlite
+*.db
+*.ipynb_checkpoints/
