@@ -996,6 +996,70 @@ M(3, 3) = 0.0f;`,
 		bumper.hit()
 		return`,
   },
+  gsCovariance: {
+    lang: 'glsl',
+    source: 'gaussian-splatting/vertex.shd:29',
+    code: `mat3 J = mat3(line1.x, 0.0, 0.0,
+              0.0, line2.y, 0.0,
+              line1.z, line2.z, 0.0);
+// …
+mat3 Sigma = R * S * transpose(S) * transpose(R);
+
+mat3 sigma_prime = J * W * Sigma * transpose(W) * transpose(J);
+sigma_prime[0][0] += 0.3;
+sigma_prime[1][1] += 0.3;
+// …
+vec2 dir = vec2(b, lambda_1 - a);
+vec2 ortho = vec2(a - lambda_1, b);
+// …
+dir *= 3 * sqrt(lambda_1);
+ortho *= 3 * sqrt(lambda_2);`,
+  },
+  gsFragment: {
+    lang: 'glsl',
+    source: 'gaussian-splatting/fragment.shd:10',
+    code: `void main() {
+  float alpha = opacity * exp( - 0.5f * dot(d, inv_sigma * d));
+  if (alpha < 1.0/255.0)
+  {
+    discard;
+  }
+  output_color = vec4(color, alpha);
+}`,
+  },
+  gsSort: {
+    lang: 'cpp',
+    source: 'gaussian-splatting/main.cpp:170',
+    code: `float z_min = (view * glm::vec4(scene_center, 1.0f)).z - scene_radius;
+float z_scale = 65535.0f / std::max(2.0f * scene_radius, 1e-6f);
+
+for (size_t i = 0; i < splats.size(); i++) {
+  float z = view[0][2] * splats[i].pos[0]
+            - view[1][2] * splats[i].pos[1]
+            + view[2][2] * splats[i].pos[2]
+            + view[3][2];
+  float bin = std::max((z - z_min) * z_scale, 0.0f);
+  bins[i] = (uint16_t)std::min(bin, 65535.0f);
+}
+
+for (size_t i = 0; i < splats.size(); i++) {
+  counts[bins[i]]++;
+}
+
+GLuint offset = 0;
+for (size_t b = 0; b < 65536; b++) {
+  GLuint count = counts[b];
+  counts[b] = offset;
+  offset += count;
+}
+
+for (size_t i = 0; i < splats.size(); i++) {
+  indices[counts[bins[i]]++] = i;
+}
+
+glNamedBufferSubData(ebo_id, 0, splats.size() * sizeof(GLuint),
+                     indices.data());`,
+  },
 } as const;
 
 export type SnippetKey = keyof typeof snippets;
@@ -5508,18 +5572,17 @@ const gaussianSplatting: ProjectDef = {
   category: 'rendering',
   title: 'Gaussian Splatting',
   tone: 'pink',
-  status: 'wip',
-  tech: ['OpenGL', 'GLSL'],
-  tags: ['rendering', 'gpu'],
+  tech: ['C++11', 'OpenGL 4.5', 'GLSL', 'GLM', 'CMake'],
+  tags: ['cpp', 'rendering', 'gpu'],
   shots: {},
   gallery: [],
 
   text: {
     /* ── English ─────────────────────────────────────────────────── */
     en: {
-      tagline: 'A Gaussian splatting renderer in OpenGL — in progress',
+      tagline: 'A 3D Gaussian splatting renderer, written by hand in OpenGL 4.5',
       description:
-        'Rendering a 3DGS scene in real time: millions of 3D Gaussians projected, sorted and blended on screen, through a hand-written OpenGL pipeline. Far from finished; this page describes the path, not the result yet.',
+        'Real-time rendering of a 3DGS scene: every Gaussian is projected to a screen-space ellipse, sorted by depth and blended back to front, through a vertex, geometry and fragment shader pipeline. It reads both the trained .ply files of the paper and the compact .splat format.',
       shots: {},
       sections: [
         {
@@ -5527,41 +5590,102 @@ const gaussianSplatting: ProjectDef = {
           kicker: '01',
           title: 'The idea',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                '3D Gaussian Splatting (Kerbl et al., 2023): a scene is no longer a mesh but a cloud of 3D Gaussians — a position, a covariance (scale and rotation), an opacity and a view-dependent colour (spherical harmonics).',
-                'Rendering: each Gaussian is projected to a 2D ellipse (covariance Σ′ = J W Σ Wᵀ Jᵀ, J the Jacobian of the projection), sorted by depth, then composited in order.',
-                'No ray tracing and no network at render time: quads and alpha blending, which is what a GPU does best.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  '3D Gaussian Splatting (Kerbl et al., 2023): a scene is no longer a mesh but a cloud of 3D Gaussians — a position, a covariance (scale and rotation), an opacity and a view-dependent colour (spherical harmonics).',
+                  'Rendering: each Gaussian is projected to a 2D ellipse, sorted by depth, then composited in order.',
+                  'No ray tracing and no network at render time: quads and alpha blending, which is what a GPU does best.',
+                ],
+              },
           ],
         },
         {
-          id: 'opengl',
+          id: 'loading',
           kicker: '02',
-          title: 'What OpenGL asks for',
+          title: 'Loading a scene',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                'Sorting: millions of Gaussians to sort by depth whenever the camera moves — on the GPU (a radix sort in a compute shader) or on the CPU, accepting a sort one frame late.',
-                'Blending: one quad per Gaussian, the ellipse evaluated in the fragment shader, and the compositing order that fixes the choice of blend functions.',
-                'Memory: position, covariance, opacity and 48 spherical-harmonic coefficients per Gaussian; how they are packed into buffers decides the bandwidth.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  'Two formats. The .ply written by 3DGS training: binary little-endian, scale stored as a logarithm (exp on load), opacity as a logit (sigmoid), the quaternion renormalised.',
+                  'The compact .splat: 32 bytes per Gaussian — position and scale in floats, RGBA and quaternion on one byte per component. Its colour is turned into a degree-0 spherical harmonic, so both formats go down the same pipeline.',
+                  'Spherical harmonics up to degree 3: 16 coefficients per channel, 48 floats per Gaussian, in a texture buffer (RGB32F) read with texelFetch. The vertex shader evaluates them against the direction from the camera, so colour changes with the viewpoint.',
+                ],
+              },
           ],
         },
         {
-          id: 'status',
+          id: 'projection',
           kicker: '03',
-          title: 'Where it stands',
+          title: 'From a 3D Gaussian to an on-screen quad',
           blocks: [
-            {
-              type: 'text',
-              content:
-                'In progress, and far from finished. Code, captures and measurements will land here once they have something to say.',
-            },
+              {
+                type: 'list',
+                items: [
+                  'Vertex shader: the 3D covariance Σ = R S Sᵀ Rᵀ is built from the quaternion and the scales, then carried to the screen by Σ′ = J W Σ Wᵀ Jᵀ — W the view rotation, J the Jacobian of the perspective projection at the Gaussian’s centre.',
+                  'Adding 0.3 to the diagonal of Σ′ is the low-pass filter of the reference implementation: σ never drops below √0.3 ≈ 0.55 px, so distant Gaussians stop flickering.',
+                  'The eigen-decomposition of the 2×2 matrix gives the ellipse’s axes; each one is stretched to 3σ, which holds 99 % of the Gaussian.',
+                  'Geometry shader: one point in, a 4-vertex triangle strip out, aligned with the axes. Gaussians behind the camera or entirely outside the frustum emit nothing.',
+                ],
+              },
+              {
+                type: 'code',
+                snippet: 'gsCovariance',
+                caption:
+                  'The projection of the covariance, in the vertex shader. J only keeps two rows: the depth of the ellipse does not matter on screen.',
+              },
+          ],
+        },
+        {
+          id: 'blending',
+          kicker: '04',
+          title: 'Compositing',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'The fragment shader evaluates the Gaussian at the pixel, d being the offset from the centre in pixels. Fragments under 1/255 are discarded, the rest blended with GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA — the over operator, back to front. Depth writes are off: order alone decides who covers whom.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsFragment',
+                caption:
+                  'The whole fragment shader: one exponential per pixel.',
+              },
+          ],
+        },
+        {
+          id: 'sorting',
+          kicker: '05',
+          title: 'Sorting',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'The over operator needs Gaussians from back to front. The sort runs on the CPU, and only when the camera moves: a counting sort on depth quantised to 16 bits, between the bounds of the scene’s bounding sphere. Two linear passes over the Gaussians, one over the 65 536 bins, no comparisons. Its result is the index buffer the draw call reads: the Gaussians themselves never move in memory.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsSort',
+                caption:
+                  'The counting sort: histogram, prefix sum, scatter, then upload of the indices.',
+              },
+          ],
+        },
+        {
+          id: 'next',
+          kicker: '06',
+          title: 'Next steps',
+          blocks: [
+              {
+                type: 'list',
+                items: [
+                  'Move the sort to the GPU (a radix sort in a compute shader), so the CPU no longer limits large scenes.',
+                  'Replace the geometry shader with instanced quads, which are faster on many GPUs.',
+                  'Derive the focal length from the real viewport size instead of a fixed 1024 × 1024 window.',
+                ],
+              },
           ],
         },
       ],
@@ -5569,9 +5693,9 @@ const gaussianSplatting: ProjectDef = {
 
     /* ── Français ────────────────────────────────────────────────── */
     fr: {
-      tagline: 'Un rendu de Gaussian splatting en OpenGL — en cours',
+      tagline: 'Un rendu de 3D Gaussian Splatting, écrit à la main en OpenGL 4.5',
       description:
-        'Afficher en temps réel une scène 3DGS : des millions de gaussiennes 3D projetées, triées et mélangées à l’écran, dans un pipeline OpenGL écrit à la main. Le projet est loin d’être fini ; cette page dit le chemin, pas encore le résultat.',
+        'Afficher en temps réel une scène 3DGS : chaque gaussienne est projetée en ellipse à l’écran, triée par profondeur et mélangée de l’arrière vers l’avant, dans un pipeline vertex, geometry et fragment shader. Il lit les .ply entraînés de l’article comme le format compact .splat.',
       shots: {},
       sections: [
         {
@@ -5579,41 +5703,102 @@ const gaussianSplatting: ProjectDef = {
           kicker: '01',
           title: 'Le principe',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                '3D Gaussian Splatting (Kerbl et al., 2023) : une scène n’est plus un maillage mais un nuage de gaussiennes 3D — une position, une covariance (échelle et rotation), une opacité et une couleur qui dépend de la vue (harmoniques sphériques).',
-                'Rendu : chaque gaussienne est projetée en ellipse 2D (covariance Σ′ = J W Σ Wᵀ Jᵀ, J la jacobienne de la projection), triée par profondeur, puis composée dans l’ordre.',
-                'Ni lancer de rayons ni réseau au rendu : des quads et du mélange alpha, ce qu’un GPU fait le mieux.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  '3D Gaussian Splatting (Kerbl et al., 2023) : une scène n’est plus un maillage mais un nuage de gaussiennes 3D — une position, une covariance (échelle et rotation), une opacité et une couleur qui dépend de la vue (harmoniques sphériques).',
+                  'Rendu : chaque gaussienne est projetée en ellipse 2D, triée par profondeur, puis composée dans l’ordre.',
+                  'Ni lancer de rayons ni réseau au rendu : des quads et du mélange alpha, ce qu’un GPU fait le mieux.',
+                ],
+              },
           ],
         },
         {
-          id: 'opengl',
+          id: 'loading',
           kicker: '02',
-          title: 'Ce que demande OpenGL',
+          title: 'Charger une scène',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                'Le tri : des millions de gaussiennes à trier par profondeur à chaque mouvement de caméra — sur le GPU (tri radix en compute shader) ou sur le CPU, en acceptant un tri en retard d’une image.',
-                'Le mélange : un quad par gaussienne, l’ellipse évaluée dans le fragment shader, et l’ordre de composition qui fixe le choix des fonctions de mélange.',
-                'La mémoire : position, covariance, opacité et 48 coefficients d’harmoniques sphériques par gaussienne ; leur rangement dans les tampons décide de la bande passante.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  'Deux formats. Le .ply produit par l’entraînement 3DGS : binaire little-endian, échelle stockée en logarithme (exp au chargement), opacité en logit (sigmoïde), quaternion renormalisé.',
+                  'Le .splat compact : 32 octets par gaussienne — position et échelle en flottants, RGBA et quaternion sur un octet par composante. Sa couleur devient une harmonique sphérique de degré 0, si bien que les deux formats suivent le même pipeline.',
+                  'Harmoniques sphériques jusqu’au degré 3 : 16 coefficients par canal, 48 flottants par gaussienne, dans un texture buffer (RGB32F) lu par texelFetch. Le vertex shader les évalue selon la direction depuis la caméra : la couleur change avec le point de vue.',
+                ],
+              },
           ],
         },
         {
-          id: 'status',
+          id: 'projection',
           kicker: '03',
-          title: 'Où il en est',
+          title: 'D’une gaussienne 3D à un quad à l’écran',
           blocks: [
-            {
-              type: 'text',
-              content:
-                'En cours, et loin d’être fini. Le code, des captures et des mesures viendront ici quand ils auront quelque chose à dire.',
-            },
+              {
+                type: 'list',
+                items: [
+                  'Vertex shader : la covariance 3D Σ = R S Sᵀ Rᵀ se construit à partir du quaternion et des échelles, puis passe à l’écran par Σ′ = J W Σ Wᵀ Jᵀ — W la rotation de la vue, J la jacobienne de la projection perspective au centre de la gaussienne.',
+                  'Ajouter 0,3 à la diagonale de Σ′, c’est le filtre passe-bas de l’implémentation de référence : σ ne descend jamais sous √0,3 ≈ 0,55 px, et les gaussiennes lointaines cessent de scintiller.',
+                  'La décomposition propre de la matrice 2×2 donne les axes de l’ellipse ; chacun est étiré à 3σ, ce qui contient 99 % de la gaussienne.',
+                  'Geometry shader : un point en entrée, une bande de 4 sommets en sortie, alignée sur les axes. Les gaussiennes derrière la caméra ou entièrement hors du frustum n’émettent rien.',
+                ],
+              },
+              {
+                type: 'code',
+                snippet: 'gsCovariance',
+                caption:
+                  'La projection de la covariance, dans le vertex shader. J ne garde que deux lignes : la profondeur de l’ellipse ne compte pas à l’écran.',
+              },
+          ],
+        },
+        {
+          id: 'blending',
+          kicker: '04',
+          title: 'La composition',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'Le fragment shader évalue la gaussienne au pixel, d étant l’écart au centre en pixels. Les fragments sous 1/255 sont jetés, les autres mélangés en GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA — l’opérateur over, de l’arrière vers l’avant. L’écriture de profondeur est coupée : seul l’ordre décide qui recouvre qui.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsFragment',
+                caption:
+                  'Le fragment shader en entier : une exponentielle par pixel.',
+              },
+          ],
+        },
+        {
+          id: 'sorting',
+          kicker: '05',
+          title: 'Le tri',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'L’opérateur over veut les gaussiennes de l’arrière vers l’avant. Le tri se fait sur le CPU, et seulement quand la caméra bouge : un tri par dénombrement sur la profondeur quantifiée sur 16 bits, entre les bornes de la sphère englobante de la scène. Deux passes linéaires sur les gaussiennes, une sur les 65 536 cases, aucune comparaison. Il produit le tampon d’indices que lit l’appel de dessin : les gaussiennes, elles, ne bougent jamais en mémoire.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsSort',
+                caption:
+                  'Le tri par dénombrement : histogramme, somme préfixe, répartition, puis envoi des indices.',
+              },
+          ],
+        },
+        {
+          id: 'next',
+          kicker: '06',
+          title: 'La suite',
+          blocks: [
+              {
+                type: 'list',
+                items: [
+                  'Passer le tri sur le GPU (tri radix en compute shader), pour que le CPU ne limite plus les grandes scènes.',
+                  'Remplacer le geometry shader par des quads instanciés, plus rapides sur bien des GPU.',
+                  'Tirer la focale de la taille réelle du viewport plutôt que d’une fenêtre fixe de 1024 × 1024.',
+                ],
+              },
           ],
         },
       ],
@@ -5621,9 +5806,9 @@ const gaussianSplatting: ProjectDef = {
 
     /* ── Deutsch ─────────────────────────────────────────────────── */
     de: {
-      tagline: 'Ein Gaussian-Splatting-Renderer in OpenGL — in Arbeit',
+      tagline: 'Ein 3D-Gaussian-Splatting-Renderer, von Hand in OpenGL 4.5 geschrieben',
       description:
-        'Eine 3DGS-Szene in Echtzeit darstellen: Millionen 3D-Gaußfunktionen, projiziert, sortiert und am Bildschirm gemischt, in einer handgeschriebenen OpenGL-Pipeline. Noch lange nicht fertig; diese Seite beschreibt den Weg, noch nicht das Ergebnis.',
+        'Eine 3DGS-Szene in Echtzeit darstellen: Jede Gaußfunktion wird zu einer Ellipse am Bildschirm projiziert, nach Tiefe sortiert und von hinten nach vorn gemischt, in einer Pipeline aus Vertex-, Geometry- und Fragment-Shader. Er liest die trainierten .ply-Dateien des Papers wie das kompakte .splat-Format.',
       shots: {},
       sections: [
         {
@@ -5631,41 +5816,102 @@ const gaussianSplatting: ProjectDef = {
           kicker: '01',
           title: 'Das Prinzip',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                '3D Gaussian Splatting (Kerbl et al., 2023): Eine Szene ist kein Mesh mehr, sondern eine Wolke aus 3D-Gaußfunktionen — Position, Kovarianz (Skalierung und Rotation), Deckkraft und eine blickabhängige Farbe (Kugelflächenfunktionen).',
-                'Rendering: Jede Gaußfunktion wird zu einer 2D-Ellipse projiziert (Kovarianz Σ′ = J W Σ Wᵀ Jᵀ, J die Jacobi-Matrix der Projektion), nach Tiefe sortiert und dann der Reihe nach zusammengesetzt.',
-                'Kein Raytracing und kein Netzwerk beim Rendern: Quads und Alpha-Blending — das, was eine GPU am besten kann.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  '3D Gaussian Splatting (Kerbl et al., 2023): Eine Szene ist kein Mesh mehr, sondern eine Wolke aus 3D-Gaußfunktionen — Position, Kovarianz (Skalierung und Rotation), Deckkraft und eine blickabhängige Farbe (Kugelflächenfunktionen).',
+                  'Rendering: Jede Gaußfunktion wird zu einer 2D-Ellipse projiziert, nach Tiefe sortiert und dann der Reihe nach zusammengesetzt.',
+                  'Kein Raytracing und kein Netzwerk beim Rendern: Quads und Alpha-Blending — das, was eine GPU am besten kann.',
+                ],
+              },
           ],
         },
         {
-          id: 'opengl',
+          id: 'loading',
           kicker: '02',
-          title: 'Was OpenGL verlangt',
+          title: 'Eine Szene laden',
           blocks: [
-            {
-              type: 'list',
-              items: [
-                'Sortieren: Millionen Gaußfunktionen bei jeder Kamerabewegung nach Tiefe sortieren — auf der GPU (Radix-Sort im Compute-Shader) oder auf der CPU, mit einer Sortierung, die einen Frame hinterherhinkt.',
-                'Blending: ein Quad pro Gaußfunktion, die Ellipse im Fragment-Shader ausgewertet, und die Reihenfolge der Komposition, die die Wahl der Blend-Funktionen festlegt.',
-                'Speicher: Position, Kovarianz, Deckkraft und 48 Kugelflächenfunktions-Koeffizienten pro Gaußfunktion; wie sie in Puffern liegen, entscheidet über die Bandbreite.',
-              ],
-            },
+              {
+                type: 'list',
+                items: [
+                  'Zwei Formate. Die .ply aus dem 3DGS-Training: binär little-endian, Skalierung als Logarithmus gespeichert (exp beim Laden), Deckkraft als Logit (Sigmoid), Quaternion renormiert.',
+                  'Das kompakte .splat: 32 Byte pro Gaußfunktion — Position und Skalierung als Floats, RGBA und Quaternion mit einem Byte pro Komponente. Seine Farbe wird zu einer Kugelflächenfunktion vom Grad 0, sodass beide Formate dieselbe Pipeline durchlaufen.',
+                  'Kugelflächenfunktionen bis Grad 3: 16 Koeffizienten pro Kanal, 48 Floats pro Gaußfunktion, in einem Texture Buffer (RGB32F), gelesen mit texelFetch. Der Vertex-Shader wertet sie in Blickrichtung der Kamera aus: Die Farbe ändert sich mit dem Standpunkt.',
+                ],
+              },
           ],
         },
         {
-          id: 'status',
+          id: 'projection',
           kicker: '03',
-          title: 'Stand',
+          title: 'Von der 3D-Gaußfunktion zum Quad am Bildschirm',
           blocks: [
-            {
-              type: 'text',
-              content:
-                'In Arbeit und noch lange nicht fertig. Code, Aufnahmen und Messungen kommen hierher, sobald sie etwas zu sagen haben.',
-            },
+              {
+                type: 'list',
+                items: [
+                  'Vertex-Shader: Die 3D-Kovarianz Σ = R S Sᵀ Rᵀ entsteht aus Quaternion und Skalierungen und gelangt über Σ′ = J W Σ Wᵀ Jᵀ auf den Bildschirm — W die Rotation der Ansicht, J die Jacobi-Matrix der Perspektivprojektion im Zentrum der Gaußfunktion.',
+                  '0,3 auf die Diagonale von Σ′ zu addieren ist der Tiefpass der Referenzimplementierung: σ fällt nie unter √0,3 ≈ 0,55 px, und entfernte Gaußfunktionen flimmern nicht mehr.',
+                  'Die Eigenzerlegung der 2×2-Matrix liefert die Achsen der Ellipse; jede wird auf 3σ gestreckt, was 99 % der Gaußfunktion umfasst.',
+                  'Geometry-Shader: ein Punkt hinein, ein Triangle-Strip aus 4 Vertices heraus, an den Achsen ausgerichtet. Gaußfunktionen hinter der Kamera oder ganz außerhalb des Frustums erzeugen nichts.',
+                ],
+              },
+              {
+                type: 'code',
+                snippet: 'gsCovariance',
+                caption:
+                  'Die Projektion der Kovarianz im Vertex-Shader. J behält nur zwei Zeilen: Die Tiefe der Ellipse zählt am Bildschirm nicht.',
+              },
+          ],
+        },
+        {
+          id: 'blending',
+          kicker: '04',
+          title: 'Die Komposition',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'Der Fragment-Shader wertet die Gaußfunktion am Pixel aus, d ist der Abstand zum Zentrum in Pixeln. Fragmente unter 1/255 werden verworfen, die übrigen mit GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA gemischt — der Over-Operator, von hinten nach vorn. Das Schreiben der Tiefe ist aus: Allein die Reihenfolge entscheidet, wer wen verdeckt.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsFragment',
+                caption:
+                  'Der ganze Fragment-Shader: eine Exponentialfunktion pro Pixel.',
+              },
+          ],
+        },
+        {
+          id: 'sorting',
+          kicker: '05',
+          title: 'Das Sortieren',
+          blocks: [
+              {
+                type: 'text',
+                content:
+                  'Der Over-Operator braucht die Gaußfunktionen von hinten nach vorn. Sortiert wird auf der CPU, und nur wenn sich die Kamera bewegt: ein Counting Sort auf der auf 16 Bit quantisierten Tiefe, zwischen den Grenzen der Hüllkugel der Szene. Zwei lineare Durchläufe über die Gaußfunktionen, einer über die 65 536 Fächer, kein einziger Vergleich. Heraus kommt der Indexpuffer, den der Draw-Call liest: Die Gaußfunktionen selbst bewegen sich nie im Speicher.',
+              },
+              {
+                type: 'code',
+                snippet: 'gsSort',
+                caption:
+                  'Der Counting Sort: Histogramm, Präfixsumme, Verteilung, dann Upload der Indizes.',
+              },
+          ],
+        },
+        {
+          id: 'next',
+          kicker: '06',
+          title: 'Wie es weitergeht',
+          blocks: [
+              {
+                type: 'list',
+                items: [
+                  'Das Sortieren auf die GPU verlegen (Radix-Sort im Compute-Shader), damit die CPU große Szenen nicht mehr begrenzt.',
+                  'Den Geometry-Shader durch instanzierte Quads ersetzen, die auf vielen GPUs schneller sind.',
+                  'Die Brennweite aus der echten Viewport-Größe ableiten statt aus einem festen 1024 × 1024-Fenster.',
+                ],
+              },
           ],
         },
       ],
@@ -5687,8 +5933,8 @@ const definitions: ProjectDef[] = [
   raymarcher,
   toongl,
   cudaMotion,
-  neuralTexture, // en cours
-  gaussianSplatting, // en cours, le plus loin d'être fini : il ferme la marche
+  gaussianSplatting,
+  neuralTexture, // en cours : il ferme la marche
 
   // Vision & imagerie
   pulmonix,
