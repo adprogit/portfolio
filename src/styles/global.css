@@ -384,6 +384,158 @@
     }
   }
 
+  /*
+   * ── La scène du hero ────────────────────────────────────────────────
+   * Elle prend ce qui reste de l'écran sous la bio (`flex: 1 1 0`), jamais
+   * plus : la bio fait toujours un écran. `container-type: size` permet de
+   * tout masquer quand il ne reste qu'une bande trop basse pour y lire un
+   * nœud — sur un téléphone, presque toujours.
+   *
+   * L'image de repli est un masque à un bit : la page la peint avec l'accent
+   * du thème courant, donc une seule image sert aux deux thèmes. Le canvas la
+   * relève en fondu dès sa première image (`data-state="live"`).
+   */
+  /* La colonne du hero : une pile qui remplit l'écran, grille sur grand écran. */
+  .hero-shell {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .hero-scene {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    margin-top: 1.5rem;
+    container-type: size;
+  }
+
+  .hero-poster,
+  .hero-canvas {
+    position: absolute;
+    inset: 0 0 1.75rem;
+    width: 100%;
+    height: calc(100% - 1.75rem);
+  }
+
+  .hero-poster {
+    background: var(--color-brand);
+    mask: var(--poster) center / contain no-repeat;
+    transition: opacity 0.6s ease;
+  }
+
+  .hero-canvas {
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+
+  .hero-scene[data-state='live'] .hero-canvas {
+    opacity: 1;
+  }
+
+  .hero-scene[data-state='live'] .hero-poster {
+    opacity: 0;
+  }
+
+  .hero-scene-bar {
+    position: absolute;
+    inset: auto 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    color: var(--color-ink-soft);
+  }
+
+  .hero-still {
+    display: none;
+  }
+
+  .hero-scene[data-state='still'] .hero-still {
+    display: inline;
+  }
+
+  .hero-modes {
+    display: inline-flex;
+    gap: 0.75rem;
+  }
+
+  .hero-modes[hidden] {
+    display: none;
+  }
+
+  .hero-modes button {
+    padding-block: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--color-ink-soft);
+    transition: color 0.2s;
+  }
+
+  .hero-modes button:hover,
+  .hero-modes button[aria-pressed='true'] {
+    color: var(--color-brand);
+  }
+
+  .hero-modes button[aria-pressed='true'] {
+    text-decoration: underline;
+    text-underline-offset: 0.3em;
+  }
+
+  @container (max-height: 7rem) {
+    .hero-poster,
+    .hero-canvas,
+    .hero-scene-bar {
+      display: none;
+    }
+  }
+
+  /*
+   * Grand écran : deux colonnes. Sous la bio, il ne reste presque rien d'un
+   * écran de portable — la scène passe donc à côté, sur toute la hauteur, et
+   * la colonne du hero s'élargit pour elle seule. Les autres pages gardent
+   * leur colonne.
+   */
+  @media (min-width: 72rem) {
+    /* Le bandeau de l'accueil suit la colonne élargie du hero. */
+    html.snap header > .shell {
+      max-width: 82rem;
+    }
+
+    .hero-shell {
+      display: grid;
+      max-width: 82rem;
+      grid-template-columns: minmax(0, 40rem) minmax(0, 1fr);
+      grid-template-rows: auto 1fr auto;
+      column-gap: 3rem;
+    }
+
+    .hero-bio,
+    .hero-cue {
+      grid-column: 1;
+      margin-inline: 0;
+    }
+
+    .hero-bio {
+      grid-row: 1;
+    }
+
+    .hero-cue {
+      grid-row: 3;
+    }
+
+    .hero-scene {
+      grid-column: 2;
+      grid-row: 1 / 4;
+      min-height: 22rem;
+      margin-top: 4rem;
+    }
+  }
+
   .hero-cue-track {
     position: relative;
     display: block;
@@ -628,6 +780,11 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    .hero-poster,
+    .hero-canvas {
+      transition: none;
+    }
+
     .hero-cue-track::after {
       animation: none;
       transform: translateY(60%);

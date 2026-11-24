@@ -22,6 +22,13 @@ const en = {
   'home.scroll': 'Scroll',
   'home.count': '{n} projects',
 
+  'hero.caption': '3D Gaussian splatting, ported from my OpenGL engine to WebGPU',
+  'hero.still': 'Still image: this browser has no WebGPU',
+  'hero.modes': 'Rendering style',
+  'hero.mode.dither': 'Dither',
+  'hero.mode.hatch': 'Hatching',
+  'hero.mode.splat': 'Reference',
+
   'cat.rendering': 'Rendering & GPU',
   'cat.vision': 'Vision & imaging',
   'cat.systems': 'Languages & systems',
@@ -217,6 +224,13 @@ const fr: Dict = {
   'home.scroll': 'Défiler',
   'home.count': '{n} projets',
 
+  'hero.caption': 'Gaussian splatting 3D, porté de mon moteur OpenGL vers WebGPU',
+  'hero.still': 'Image fixe : ce navigateur n’a pas WebGPU',
+  'hero.modes': 'Style de rendu',
+  'hero.mode.dither': 'Tramage',
+  'hero.mode.hatch': 'Hachures',
+  'hero.mode.splat': 'Référence',
+
   'cat.rendering': 'Rendu & GPU',
   'cat.vision': 'Vision & imagerie',
   'cat.systems': 'Langages & systèmes',
@@ -409,6 +423,13 @@ const de: Dict = {
   'home.skills': 'Fähigkeiten',
   'home.scroll': 'Scrollen',
   'home.count': '{n} Projekte',
+
+  'hero.caption': '3D Gaussian Splatting, aus meiner OpenGL-Engine nach WebGPU portiert',
+  'hero.still': 'Standbild: Dieser Browser hat kein WebGPU',
+  'hero.modes': 'Darstellungsstil',
+  'hero.mode.dither': 'Rasterung',
+  'hero.mode.hatch': 'Schraffur',
+  'hero.mode.splat': 'Referenz',
 
   'cat.rendering': 'Rendering & GPU',
   'cat.vision': 'Bildverarbeitung',

@@ -233,13 +233,32 @@ for (const file of images) {
  */
 const JS_BUDGET = 48 * 1024;
 
+/*
+ * Le hero WebGPU a son propre plafond. C'est un module qu'on ne télécharge
+ * qu'après le chargement de la page, et seulement si WebGPU est là et que le
+ * cadre a la place de s'afficher : il ne pèse pas sur le premier affichage.
+ * Le compter dans les 48 Ko aurait forcé à relever le plafond du site entier
+ * — et donc à moins bien voir la dérive qu'il surveille.
+ */
+const HERO_BUDGET = 16 * 1024;
+const isHero = (file) => /[\\/]hero\.[\w-]+\.js$/.test(file);
+
 const scripts = files.filter((file) => file.endsWith('.js'));
-const jsBytes = scripts.reduce((total, file) => total + statSync(file).size, 0);
+const size = (list) => list.reduce((total, file) => total + statSync(file).size, 0);
+const jsBytes = size(scripts.filter((file) => !isHero(file)));
+const heroBytes = size(scripts.filter(isHero));
 
 if (jsBytes > JS_BUDGET) {
   problems.push(
     `budget JS dépassé : ${(jsBytes / 1024).toFixed(1)} Ko livrés pour ` +
       `${(JS_BUDGET / 1024).toFixed(0)} Ko autorisés — une dépendance est-elle entrée ?`
+  );
+}
+
+if (heroBytes > HERO_BUDGET) {
+  problems.push(
+    `budget du hero dépassé : ${(heroBytes / 1024).toFixed(1)} Ko pour ` +
+      `${(HERO_BUDGET / 1024).toFixed(0)} Ko autorisés`
   );
 }
 
@@ -266,7 +285,8 @@ const unique = [...new Set(problems)];
 
 console.log(
   `${pages.length} pages, ${files.length} fichiers examinés dans ${relative(process.cwd(), root)}/ · ` +
-    `JS livré ${(jsBytes / 1024).toFixed(1)} Ko / ${(JS_BUDGET / 1024).toFixed(0)} Ko`
+    `JS livré ${(jsBytes / 1024).toFixed(1)} Ko / ${(JS_BUDGET / 1024).toFixed(0)} Ko · ` +
+    `hero ${(heroBytes / 1024).toFixed(1)} Ko / ${(HERO_BUDGET / 1024).toFixed(0)} Ko`
 );
 
 if (unique.length === 0) {

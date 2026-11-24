@@ -1,0 +1,125 @@
+---
+/**
+ * La scène du premier écran : le moteur de Gaussian splatting, porté en
+ * WebGPU, sous trois rendus — tramage, hachures, référence.
+ *
+ * Elle ne prend que la place que la bio laisse : `flex: 1 1 0` dans la
+ * colonne du hero, jamais plus. Sur un téléphone il n'en reste souvent pas, et
+ * la scène ne se monte pas du tout — rien n'est téléchargé ni calculé pour un
+ * cadre de zéro pixel.
+ *
+ * Trois états, portés par `data-state` :
+ * - absent : l'image de repli, calculée au build (`/hero-splat.png`) ;
+ * - `live` : le rendu WebGPU a peint sa première image, et le remplace ;
+ * - `still` : pas de WebGPU — l'image reste, et la légende le dit.
+ *
+ * Le module de rendu ne descend qu'après le chargement de la page, quand le
+ * navigateur est libre : la scène ne doit rien coûter au premier affichage.
+ */
+import { base, projectPath, type Locale } from '../i18n/config';
+import { useT, type UIKey } from '../i18n/ui';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useT(lang);
+
+// Le tramage d'abord : c'est celui de l'image de repli, la relève est muette.
+const modes = ['dither', 'hatch', 'splat'] as const;
+---
+
+<figure class="hero-scene measure" data-hero-scene style={`--poster: url(${base}hero-splat.png)`}>
+  <div class="hero-poster" aria-hidden="true"></div>
+  <canvas class="hero-canvas" aria-hidden="true" data-hero-canvas></canvas>
+
+  <figcaption class="hero-scene-bar">
+    <a class="link" href={projectPath(lang, 'gaussian-splatting')}>{t('hero.caption')}</a>
+    <span class="hero-still">{t('hero.still')}</span>
+    <span class="hero-modes" role="group" aria-label={t('hero.modes')} data-hero-modes hidden>
+      {
+        modes.map((mode, i) => (
+          <button type="button" data-mode={mode} aria-pressed={i === 0 ? 'true' : 'false'}>
+            {t(`hero.mode.${mode}` as UIKey)}
+          </button>
+        ))
+      }
+    </span>
+  </figcaption>
+</figure>
+
+<script>
+  import type { HeroHandle, HeroMode } from '../lib/splat/hero';
+
+  /** En dessous, le cadre est trop bas pour qu'on y lise un nœud. */
+  const MIN_HEIGHT = 112;
+
+  const setup = () => {
+    const root = document.querySelector<HTMLElement>('[data-hero-scene]');
+    // Même drapeau que l'échiquier : `astro:page-load` se déclenche aussi à
+    // la première visite.
+    if (!root || root.dataset.heroBound) return;
+    root.dataset.heroBound = '1';
+
+    const canvas = root.querySelector<HTMLCanvasElement>('[data-hero-canvas]');
+    const group = root.querySelector<HTMLElement>('[data-hero-modes]');
+    if (!canvas || !group) return;
+    const buttons = [...group.querySelectorAll<HTMLButtonElement>('button')];
+
+    if (!('gpu' in navigator)) {
+      root.dataset.state = 'still';
+      return;
+    }
+
+    let handle: HeroHandle | null = null;
+    let mode: HeroMode = 'dither';
+    let started = false;
+
+    buttons.forEach((button) =>
+      button.addEventListener('click', () => {
+        mode = button.dataset.mode as HeroMode;
+        buttons.forEach((b) => b.setAttribute('aria-pressed', String(b === button)));
+        handle?.setMode(mode);
+      })
+    );
+
+    const start = async () => {
+      const { mountSplatHero } = await import('../lib/splat/hero');
+      handle = await mountSplatHero(canvas, mode, () => {
+        root.dataset.state = 'live';
+      });
+      if (handle) group.hidden = false;
+      else root.dataset.state = 'still';
+    };
+
+    // On ne monte qu'un cadre assez haut, et seulement une fois.
+    const sizes = new ResizeObserver(() => {
+      if (started || root.clientHeight < MIN_HEIGHT) return;
+      started = true;
+      sizes.disconnect();
+      void start();
+    });
+
+    const idle = () => {
+      const run = () => sizes.observe(root);
+      if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2000 });
+      else setTimeout(run, 300);
+    };
+    if (document.readyState === 'complete') idle();
+    else window.addEventListener('load', idle, { once: true });
+
+    document.addEventListener(
+      'astro:before-swap',
+      () => {
+        sizes.disconnect();
+        handle?.destroy();
+        handle = null;
+      },
+      { once: true }
+    );
+  };
+
+  setup();
+  document.addEventListener('astro:page-load', setup);
+</script>

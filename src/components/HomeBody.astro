@@ -22,6 +22,7 @@ import NoteRow from './NoteRow.astro';
 import { getNotes } from '../data/notes';
 import SectionHead from './SectionHead.astro';
 import Icon from './Icon.astro';
+import HeroScene from './HeroScene.astro';
 import { firstName, links, profile } from '../data/profile';
 import { getProjects, getProjectGroups } from '../data/projects';
 import type { Locale } from '../i18n/config';
@@ -41,7 +42,7 @@ const notes = getNotes(lang);
 
 {/* ── Premier écran : la bio, et rien d'autre ──────────────────── */}
 <section class="hero" aria-labelledby="home-title">
-  <div class="shell relative flex flex-1 flex-col px-5 sm:px-8">
+  <div class="hero-shell shell relative px-5 sm:px-8">
     {/*
       Le prénom, d'une autre main : la didone du titre, en contour, toujours à
       l'horizontale. Sur grand écran il se pose en haut à droite, à côté du
@@ -49,7 +50,7 @@ const notes = getNotes(lang);
     */}
     <p class="hero-name">{firstName}</p>
 
-    <div class="measure" data-reveal-group>
+    <div class="hero-bio measure" data-reveal-group>
       {/*
         La seule ligne du site qui s'écrit. `--chars` donne au masque son nombre
         de pas : il change avec la langue, donc il est calculé ici et pas en CSS.
@@ -140,6 +141,9 @@ const notes = getNotes(lang);
       </ul>
     </div>
 
+    {/* Ce qui reste de l'écran sous la bio : la scène WebGPU. */}
+    <HeroScene lang={lang} />
+
     {/*
       L'invite de défilement. C'est un lien, pas un décor : au clavier comme au
       clic, elle mène là où le geste mènerait. `mt-auto` la pousse en bas, donc
@@ -147,7 +151,7 @@ const notes = getNotes(lang);
     */}
     <a
       href="#projects"
-      class="measure mt-auto flex items-center gap-3 pt-10 font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase transition-colors hover:text-ink-strong"
+      class="hero-cue measure mt-auto flex items-center gap-3 pt-10 font-mono text-2xs tracking-[0.16em] text-ink-soft uppercase transition-colors hover:text-ink-strong"
     >
       <span class="hero-cue-track" aria-hidden="true"></span>
       {t('home.scroll')}
