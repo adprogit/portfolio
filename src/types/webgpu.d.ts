@@ -1,5 +1,6 @@
 /**
- * Types WebGPU, réduits à ce que `src/lib/chess` et `src/lib/gpu` appellent.
+ * Types WebGPU, réduits à ce que `src/lib/chess`, `src/lib/splat` et
+ * `src/lib/gpu` appellent.
  *
  * TypeScript 5.9 ne les fournit pas encore et `@webgpu/types` serait une
  * dépendance de plus — pour un fichier de déclarations, sans code exécuté. Il
@@ -57,11 +58,14 @@ interface GPUSampler {
   readonly label: string;
 }
 
-/** Mélange additif : sert à accumuler les échantillons. */
+/**
+ * Mélange additif (l'échiquier accumule ses échantillons) ou « over »
+ * prémultiplié (le hero compose ses gaussiennes).
+ */
 interface GPUBlendComponent {
   srcFactor: 'one' | 'zero';
-  dstFactor: 'one' | 'zero';
-  operation: 'add';
+  dstFactor: 'one' | 'zero' | 'one-minus-src-alpha';
+  operation?: 'add';
 }
 
 interface GPUCommandBuffer {
@@ -121,7 +125,7 @@ interface GPURenderPipelineDescriptor {
       blend?: { color: GPUBlendComponent; alpha: GPUBlendComponent };
     }>;
   };
-  primitive?: { topology: 'triangle-list' };
+  primitive?: { topology: 'triangle-list' | 'triangle-strip' };
 }
 
 interface GPUDevice extends EventTarget {

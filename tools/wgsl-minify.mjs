@@ -1,11 +1,12 @@
 /**
- * Minifie le WGSL de l'échiquier à la compilation.
+ * Minifie le WGSL de l'échiquier et du hero à la compilation.
  *
  * Le shader est écrit pour être lu : chaque fonction dit de quel fichier C++
  * elle vient, chaque écart est expliqué. Ces commentaires n'ont rien à faire
  * dans le JavaScript livré — c'est plus de la moitié du module, et le budget
  * JS du site est serré. Le plugin Vite ne touche qu'aux gabarits
- * `export const NOM = `…`` de `src/lib/chess/shader-wgsl.ts`, et seulement
+ * `export const NOM = `…`` des `shader-wgsl.ts` de `src/lib/chess/` et
+ * `src/lib/splat/`, et seulement
  * pour `astro build` : en développement, le shader reste tel quel.
  *
  * Les commentaires se retirent **comme WGSL les lit** : les commentaires de
@@ -42,9 +43,9 @@ export function minifyWgsl(code) {
     .join('\n');
 }
 
-const TARGET = /\/src\/lib\/chess\/shader-wgsl\.ts$/;
+const TARGET = /\/src\/lib\/(chess|splat)\/shader-wgsl\.ts$/;
 
-/** Plugin Vite : minifie les gabarits WGSL du module de l'échiquier. */
+/** Plugin Vite : minifie les gabarits WGSL de l'échiquier et du hero. */
 export function wgslMinify() {
   return {
     name: 'wgsl-minify',
