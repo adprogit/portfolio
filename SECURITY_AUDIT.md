@@ -94,7 +94,10 @@ dans le JS livré.
 | `d6401b1` | `.gitignore` complété : clés (`*.pem`, `*.key`, `*.p12`, `id_rsa*`…), identifiants (`credentials*.json`, `service-account*.json`), configurations locales, dumps (`*.sql`, `*.dump`, `*.sqlite`, `*.db`), checkpoints de notebooks. |
 | `9bd1ffe` | `.github/dependabot.yml` : mises à jour npm chaque semaine (mineures et correctifs groupés), et GitHub Actions chaque mois. Dependabot met à jour les SHA épinglés. |
 | `ea77a6b` | `CREDITS.md` : inventaire des polices, icônes, images et données, avec source et licence. La notice ISC de Lucide y figure. |
-| *(ce commit)* | Ce rapport, et les brouillons `legal/mentions-legales.md` et `legal/confidentialite.md`. |
+| `c635643` | Ce rapport, et les brouillons `legal/mentions-legales.md` et `legal/confidentialite.md`. |
+| `24c1583` | `LICENSE` : MIT pour le code ; textes, images et vidéos non couverts (tous droits réservés sauf mention). |
+| `dc3c3a0` | Astro 7.4.13 : deux avis publiés après l'audit (GHSA-mh32-jxcr-mh9f, GHSA-r3h5-4585-7x3w). `npm audit` : 0. |
+| `a14a5b5`… | Hero WebGPU : aucun appel réseau, aucune dépendance, aucun stockage ; la CSP ne change pas. Le module (11,8 Ko) a son propre budget dans `audit-dist.mjs`, qui le contrôle comme le reste (pas d'`innerHTML` ni d'`eval`). |
 
 ---
 
@@ -192,9 +195,10 @@ l'EPITA et vos coéquipiers autorisent leur publication :
 
 ### 3.6 Choix à faire
 
-- **Licence du code (`LICENSE`)** : votre choix est attendu. Ma
-  recommandation est MIT pour le code, et « tous droits réservés » ou CC BY-NC
-  4.0 pour les textes et images.
+- **Licence du code (`LICENSE`)** : fait, MIT. Les textes et images restent
+  « tous droits réservés » par défaut ; à changer si vous préférez CC BY-NC 4.0.
+  Le titulaire est écrit `adprogit` (votre identifiant GitHub, public) : remplacez-le
+  par votre nom si vous le souhaitez.
 - **Mentions légales et confidentialité** : les brouillons sont dans
   `legal/`, avec des champs `[À COMPLÉTER]`. Aucune information personnelle
   n'a été inventée. Ils seront intégrés au site une fois relus.

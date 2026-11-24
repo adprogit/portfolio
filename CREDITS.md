@@ -65,6 +65,7 @@ de la licence du site.
 | Raiders Sudoku | `raiders-sudoku/scan.jpg` (et images dérivées `binary`, `hough`, `cell`, `solved`, `app`) | Photographie d'une grille de sudoku imprimée dans un journal | Auteur de la photo et droits du journal sur la grille inconnus | ❓ |
 | Raiders Sudoku | `raiders-sudoku/training.png` | Journal d'entraînement du projet | — | ✅ |
 | 42sh, Tiger | `42sh/*.png`, `tiger/*.png` | Captures et schémas du projet | Projets d'école : voir `SECURITY_AUDIT.md` § Propriété intellectuelle | ⚠️ |
+| Hero (accueil) | `/hero-splat.png` et le rendu WebGPU | Nœud de trèfle et poussière générés par le code du site (`src/lib/splat/`), aucun fichier externe | Celle du site | ✅ |
 | Neural Texture | `neural-texture/viewer.jpg` | Rendu du matériau [WoodFloor051](https://ambientcg.com/view?id=WoodFloor051) d'ambientCG | **CC0** (domaine public) | ✅ |
 | Neural Texture | `neural-texture/rate-distortion.png` | Graphique du projet | — | ✅ |
 | Tumor Follow-up | `itk-vtk/*.png` | Coupes et rendus d'IRM cérébrales (`case6_gre1.nrrd`, `case6_gre2.nrrd`) du dépôt [itk-vtk](https://github.com/adprogit/itk-vtk) | Source et licence des IRM non indiquées. Données de santé : vérifier qu'elles sont anonymisées et publiables. | ❓ |
