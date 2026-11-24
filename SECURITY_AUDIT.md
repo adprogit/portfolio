@@ -221,3 +221,41 @@ l'EPITA et vos coéquipiers autorisent leur publication :
   HTML brut) plutôt qu'avec un formulaire.
 - **`noindex`** : le site est aujourd'hui exclu des moteurs de recherche. C'est
   bon pour la discrétion, moins bon pour une recherche d'emploi. À décider.
+
+---
+
+## 4. Second audit — 24 novembre 2026, avant `npm run dev`
+
+Branche `redesign` @ `6253b19`. Rien à corriger : le résultat est dans le tableau ci-dessous.
+
+| Contrôle | Résultat |
+|---|---|
+| Secrets, tout l'historique (56 commits, toutes branches) et l'arbre de travail | gitleaks 8.28.0, somme de contrôle vérifiée : **0 fuite** |
+| Vulnérabilités (`npm audit`) | **0** |
+| Provenance du lockfile | 436 paquets, tous depuis `registry.npmjs.org`, tous avec une empreinte sha512 ; `npm ci` les vérifie à l'installation ; `node_modules` réinstallé et conforme (`npm ls`) |
+| Signatures du registre (`npm audit signatures`) | **Non vérifiable ici** : le proxy de la session bloque `tuf-repo-cdn.sigstore.dev` (403). À lancer chez vous. |
+| Scripts d'installation | Seuls `esbuild` et `fsevents` en déclarent ; tous bloqués par `ignore-scripts=true` |
+| Paquets entrés avec Astro 7.4.13 (38, surtout des binaires de plateforme) | Nouveaux paquets non officiels relus : `tinyps` (lance `ps`/`ss`/`lsof`, arguments fixes, sans shell : Astro s'en sert pour repérer un serveur de dev déjà lancé et ne tue qu'avec `--force`, après avoir vérifié que c'est un processus Astro), `fnv1a-64`, `std-env`, `mri` : ni réseau, ni `eval` |
+| Ce que lance `npm run dev` | `astro dev`, sans script `predev`/`postdev` ; serveur sur `localhost` seulement (aucun `host` dans `astro.config.mjs`) ; seuls plugins Vite : Tailwind et `wgsl-minify` (du dépôt, en build uniquement) |
+| Code ajouté (hero) | Aucun `innerHTML`, `eval`, `fetch`, cookie ni stockage ; aucun appel réseau ; CSP inchangée ; `npm run verify` vert |
+| Archive uploadée du moteur OpenGL | Absente du dépôt (seuls des extraits figurent sur la page projet) |
+| Workflow GitHub Actions | Inchangé depuis le premier audit |
+
+### À votre charge
+
+- **Télémétrie d'Astro** : elle est active par défaut sur votre machine. À chaque
+  commande, elle envoie à `telemetry.astro.build` une empreinte du premier
+  commit, l'OS, le nombre de CPU, la version de Node et les options de
+  configuration utilisées. Rien sur les visiteurs du site, mais c'est un envoi à
+  un tiers. Pour la couper une fois pour toutes :
+
+  ```sh
+  npx astro telemetry disable
+  ```
+
+- **Signatures du registre** : après `npm ci`, lancez `npm audit signatures`.
+- **Fraîcheur des versions** : `astro` 7.4.13 et `@astrojs/runtime` 0.1.2 ont
+  6 jours ; `tinyps` 0.5.2 en a 18. Ils sont publiés par les mainteneurs
+  habituels d'Astro (et d'e18e pour `tinyps`), et la mise à jour corrige deux
+  avis de sécurité. Le risque d'une version récente est à peser contre ces deux
+  failles ; j'ai choisi la mise à jour.
