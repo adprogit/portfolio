@@ -9,7 +9,7 @@ Légende :
 - ⚠️ à vérifier par le propriétaire du site avant publication ;
 - ❓ source ou licence inconnue.
 
-Le **code** du site a sa propre licence (voir `LICENSE`, choix en attente). Les
+Le **code** du site est sous licence MIT (voir `LICENSE`). Les
 **contenus** (textes, captures, figures) peuvent relever d'une licence
 différente, précisée ci-dessous quand elle ne vous appartient pas entièrement.
 
